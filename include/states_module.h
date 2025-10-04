@@ -25,7 +25,8 @@ enum SystemState {
     WIFI_MODE,      ///< Normal WiFi operation mode
     ESP_MODE,       ///< ESP-NOW pairing mode
     UPDATE_MODE,    ///< Access Point mode for firmware updates
-    CLOCK_MODE      ///< Temporary time synchronization mode
+    CLOCK_MODE,     ///< Temporary time synchronization mode
+    CRASH_MODE      ///< Crash mode for debugging
 };
 
 //==============================================================================

@@ -159,6 +159,10 @@ void updateSystemStateMachine() {
              // No automatic transitions from CLOCK_MODE
             // TODO: Add logic to detect NTP sync completion and return early
             break;
+
+        case CRASH_MODE:
+            // No automatic transitions from CRASH_MODE
+            break;
     }
 }
 
@@ -195,7 +199,7 @@ void transitionToState(SystemState newState) {
     updateDisplayForMode(newState);
     
      // Update startup preference for persistent states
-     if (isValidStartupState(newState)) {
+     if (newState != CRASH_MODE && isValidStartupState(newState)) {
         if (oldState != UPDATE_MODE && oldState != CLOCK_MODE) {
             startupState = newState;
             saveStartupMode((uint8_t)startupState);
@@ -212,7 +216,9 @@ void transitionToState(SystemState newState) {
     }
     
     // Save last known good state
-    saveLastKnownGoodState((uint8_t)newState);
+    if (newState != CRASH_MODE) {
+        saveLastKnownGoodState((uint8_t)newState);
+    }
 }
 
 /**
@@ -256,6 +262,12 @@ void exitState(SystemState state) {
                 disconnectFromWiFi();
                 statesDebug("WiFi disconnected - clock mode active");
             }
+
+            break;
+        case CRASH_MODE:
+            // Minimal cleanup - system may be unstable
+            statesDebug("Exiting crash mode");
+            stopWiFiAP(false);
             break;
     }
 }
@@ -298,6 +310,13 @@ void enterState(SystemState state) {
             enableWiFi();
             syncAndDisplayTime();
             statesDebug("WiFi enabled for clock synchronization");
+            break;
+        case CRASH_MODE:
+            // Minimal initialization - serial should already be ready
+            startWiFiAP();
+            statesDebug("Entered crash mode - serial commands available");
+            ESP_LOGE(TAG, "=== SYSTEM IN CRASH MODE ===");
+            ESP_LOGE(TAG, "Serial commands available for diagnostics and recovery");
             break;
     }
 }
@@ -355,6 +374,7 @@ const char* getStateString(SystemState state) {
         case ESP_MODE: return "ESP_MODE";
         case UPDATE_MODE: return "UPDATE_MODE";
         case CLOCK_MODE: return "CLOCK_MODE";
+        case CRASH_MODE: return "CRASH_MODE";
         default: return "UNKNOWN_STATE";
     }
 }
@@ -379,13 +399,19 @@ bool isValidStartupState(SystemState state) {
  * startup state, and other relevant system information.
  */
 void printSystemStatus() {
-    String stateNames[] = {"IDLE_MODE", "WIFI_MODE", "UPDATE_MODE", "CLOCK_MODE", "ESP_MODE"};
+    String stateNames[] = {"IDLE_MODE", "WIFI_MODE", "UPDATE_MODE", "CLOCK_MODE", "ESP_MODE", "CRASH_MODE"};
     SystemState currentState = getCurrentState();
     SystemState startupMode = getStartupState();
     
     Serial.println("\n=== System Status ===");
     Serial.printf("Current State: %s\n", stateNames[currentState].c_str());
     Serial.printf("Startup Mode: %s\n", stateNames[startupMode].c_str());
+
+    if (currentState != CRASH_MODE) {
+        Serial.printf("Startup Mode: %s\n", stateNames[startupMode].c_str());
+    } else {
+        Serial.println("Startup Mode: N/A (CRASH MODE)");
+    }
     
     if (currentState == ESP_MODE) {
         Serial.println("WiFi Status: ESP-NOW Mode");

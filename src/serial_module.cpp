@@ -244,9 +244,15 @@ static String createDeviceInfoResponse(bool success, const String &message) {
   String freeSpaceStr = String(fsInfo.freeSpaceMB, 2) + "MB";
   String chipModelStr = ESP.getChipModel();
   String chipRevisionStr = String(ESP.getChipRevision());
-  String currentModeStr = getCurrentState() == SystemState::UPDATE_MODE
-                              ? "Update Mode"
-                              : "Standby Mode";
+  // Update current mode string to show crash mode
+  String currentModeStr;
+  if (getCurrentState() == SystemState::CRASH_MODE) {
+    currentModeStr = "Crash Mode";
+  } else if (getCurrentState() == SystemState::UPDATE_MODE) {
+    currentModeStr = "Update Mode";
+  } else {
+    currentModeStr = "Standby Mode";
+  }
 
   // Calculate estimated size
   size_t estimatedSize = 300 + message.length() + strlen(FIRMWARE_VERSION) +
@@ -306,9 +312,15 @@ static String createDeviceInfoResponse(bool success, const String &message) {
 static String createStatusResponse(bool success, const String &message) {
   // Pre-format variable strings
   const char *serialStateStr = getSerialStateString();
-  String systemModeStr = getCurrentState() == SystemState::UPDATE_MODE
-                             ? "Update Mode"
-                             : "Standby Mode";
+  // Update current mode string to show crash mode
+  String systemModeStr;
+  if (getCurrentState() == SystemState::CRASH_MODE) {
+    systemModeStr = "Crash Mode";
+  } else if (getCurrentState() == SystemState::UPDATE_MODE) {
+    systemModeStr = "Update Mode";
+  } else {
+    systemModeStr = "Standby Mode";
+  }
 
   // Calculate estimated size
   size_t estimatedSize =
@@ -1120,7 +1132,7 @@ void notifyUpdateModeExit() {
  */
 void updateSerialState() {
   // Only handle serial commands during UPDATE_MODE
-  if (getCurrentState() == SystemState::UPDATE_MODE) {
+  if (getCurrentState() == SystemState::UPDATE_MODE || getCurrentState() == SystemState::CRASH_MODE) {
     handleSerialCommands();
   }
 
