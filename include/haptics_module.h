@@ -36,8 +36,8 @@ static const char *HAPTICS_LOG = "::HAPTICS::";
 //==============================================================================
 
 typedef enum {
-    HAPTIC_ACTUATOR_ERM = 0,
-    HAPTIC_ACTUATOR_LRA = 1
+    HAPTIC_ACTUATOR_ERM = 0, // COIN CELL HAPTIC ACTUATOR
+    HAPTIC_ACTUATOR_LRA = 1 // CILINDERICAL HAPTIC ACTUATOR
 } haptic_actuator_t;
 
 //==============================================================================

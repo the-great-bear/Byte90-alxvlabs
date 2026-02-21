@@ -2,8 +2,9 @@
  * @file animation_module.cpp
  * @brief Implementation of animation playback and management
  *
- * Handles animation sequences, responds to device states like orientation changes
- * or sleep modes, and coordinates interactions between animations and systems.
+ * Handles animation sequences, responds to device states like orientation
+ * changes or sleep modes, and coordinates interactions between animations and
+ * systems.
  */
 
 #include "animation_module.h"
@@ -12,11 +13,12 @@
 #include "emotes_module.h"
 #include "espnow_module.h"
 #include "gif_module.h"
-#include "haptics_module.h"
 #include "haptics_effects.h"
+#include "haptics_module.h"
 #include "menu_module.h"
 #include "motion_module.h"
 #include "soundsfx_module.h"
+#include "speaker_module.h"
 #include "states_module.h"
 
 //==============================================================================
@@ -42,17 +44,18 @@ const unsigned long INTERACTION_CHECK_DEBOUNCE = 10;
 
 #if DEVICE_MODE == MAC_MODE | DEVICE_MODE == PC_MODE
 const char *randomEmotes[] = {
-    ZONED_EMOTE, DOUBTFUL_EMOTE, TALK_EMOTE, SCAN_EMOTE, ANGRY_EMOTE,
-    CRY_EMOTE, PIXEL_EMOTE, GLEE_EMOTE, EXCITED_EMOTE, HEARTS_EMOTE, UWU_EMOTE,
+    ZONED_EMOTE,   DOUBTFUL_EMOTE, TALK_EMOTE,  SCAN_EMOTE,
+    ANGRY_EMOTE,   CRY_EMOTE,      PIXEL_EMOTE, GLEE_EMOTE,
+    EXCITED_EMOTE, HEARTS_EMOTE,   UWU_EMOTE,
 };
 
 const char *restingEmotes[] = {REST_EMOTE, IDLE_EMOTE, LOOK_DOWN_EMOTE,
                                LOOK_UP_EMOTE, LOOK_LEFT_RIGHT_EMOTE};
 #else
 const char *randomEmotes[] = {
-    WINK_02_EMOTE, ZONED_EMOTE, DOUBTFUL_EMOTE, TALK_EMOTE, SCAN_EMOTE,
-    ANGRY_EMOTE, CRY_EMOTE, PIXEL_EMOTE, EXCITED_EMOTE, HEARTS_EMOTE,
-    UWU_EMOTE, WHISTLE_EMOTE, GLEE_EMOTE, MISCHIEF_EMOTE, HUMSUP_EMOTE,
+    WINK_02_EMOTE, ZONED_EMOTE,   DOUBTFUL_EMOTE, TALK_EMOTE,     SCAN_EMOTE,
+    ANGRY_EMOTE,   CRY_EMOTE,     PIXEL_EMOTE,    EXCITED_EMOTE,  HEARTS_EMOTE,
+    UWU_EMOTE,     WHISTLE_EMOTE, GLEE_EMOTE,     MISCHIEF_EMOTE, HUMSUP_EMOTE,
 };
 
 const char *restingEmotes[] = {
@@ -116,13 +119,11 @@ bool checkCrashOrientation() {
       currentCrashState = CrashState::CRASHED;
       wasCrashed = true;
       return true;
-    }
-    else if (currentCrashState == CrashState::CRASHED) {
+    } else if (currentCrashState == CrashState::CRASHED) {
       playGIF(CRASH02_EMOTE);
       return true;
     }
-  }
-  else if (wasCrashed) {
+  } else if (wasCrashed) {
     currentCrashState = CrashState::RECOVERING;
     playGIF(CRASH03_EMOTE);
     currentCrashState = CrashState::NONE;
@@ -145,13 +146,11 @@ bool handleSleepSequence() {
       currentSleepState = SleepState::SLEEPING;
       wasAsleep = true;
       return true;
-    }
-    else if (currentSleepState == SleepState::SLEEPING) {
+    } else if (currentSleepState == SleepState::SLEEPING) {
       playGIF(SLEEP02_EMOTE);
       return true;
     }
-  }
-  else if (wasAsleep) {
+  } else if (wasAsleep) {
     currentSleepState = SleepState::EXITING_SLEEP;
     sfxPlay("question", 20);
     if (areHapticsActive()) {
@@ -197,13 +196,14 @@ bool handleSpecialStates() {
   if (motionInteracted()) {
     if (motionSuddenAcceleration()) {
       setMotionState(MotionStateType::SUDDEN_ACCELERATION, false);
-      suddenAccelLockout = millis(); 
+      suddenAccelLockout = millis();
       sfxPlay("question");
       playGIF(STARTLED_EMOTE);
       return true;
     }
 
-    if (motionShaking() && millis() - suddenAccelLockout > SUDDEN_ACCEL_LOCKOUT_PERIOD) {
+    if (motionShaking() &&
+        millis() - suddenAccelLockout > SUDDEN_ACCEL_LOCKOUT_PERIOD) {
       setMotionState(MotionStateType::SHAKING, false);
       sfxPlay("dizzy", 10);
       playGIF(DIZZY_EMOTE);
@@ -227,8 +227,8 @@ bool handleSpecialStates() {
 
   if ((motionHalfTiltedLeft() || motionHalfTiltedRight()) &&
       !motionTiltedLeft() && !motionTiltedRight() && !motionUpsideDown()) {
-        sfxPlay("alert");
-        playGIF(SHOCK_EMOTE);
+    sfxPlay("alert");
+    playGIF(SHOCK_EMOTE);
     return true;
   }
 
@@ -310,15 +310,19 @@ bool playGIF(const char *filename) {
     return false;
   }
 
+  // Watch for audio playback
   while (playGIFFrame(false, NULL)) {
     // Update WiFi status indicator on each frame
     updateWiFiStatusIndicator();
-    
+
     unsigned long currentTime = micros();
     unsigned long elapsed = currentTime - frameTime;
+
+    // Frame timing delay
     if (elapsed < FRAME_DELAY_MICROSECONDS) {
       delayMicroseconds(FRAME_DELAY_MICROSECONDS - elapsed);
     }
+
     frameTime = micros();
 
     currentTime = millis();
@@ -352,8 +356,10 @@ bool playGIF(const char *filename) {
         }
       }
 
-      if ((motionTiltedLeft() || motionTiltedRight() || motionUpsideDown()) && strcmp(filename, CRASH01_EMOTE) != 0 &&
-          strcmp(filename, CRASH02_EMOTE) != 0 && strcmp(filename, SHOCK_EMOTE) != 0) {
+      if ((motionTiltedLeft() || motionTiltedRight() || motionUpsideDown()) &&
+          strcmp(filename, CRASH01_EMOTE) != 0 &&
+          strcmp(filename, CRASH02_EMOTE) != 0 &&
+          strcmp(filename, SHOCK_EMOTE) != 0) {
         break;
       }
 
@@ -420,11 +426,10 @@ void playEmotes() {
     case ComState::PROCESSING:
       if (getCurrentAnimationPath() != nullptr) {
         ConversationType convType = getCurrentConversationType();
-        const char* soundType = getCurrentConversationSoundType(convType);
+        const char *soundType = getCurrentConversationSoundType(convType);
         int soundDelay = getCurrentConversationSoundDelay(convType);
         sfxPlay(soundType, soundDelay);
         playGIF(getCurrentAnimationPath());
-
       }
       break;
     case ComState::WAITING:
@@ -444,7 +449,27 @@ void playBootAnimation() {
   if (!gifPlayerInitialized()) {
     return;
   }
+  // NOTE: Issue playing .mp3 sound files, alot of static, need to investigate
+  // #if DEVICE_MODE == MAC_MODE
+  //   audio_state_t audioState = getAudioState();
+  //   bool audioAvailable =
+  //       (audioState == AUDIO_STATE_READY || audioState == AUDIO_STATE_PLAYING);
+  //   if (audioAvailable) {
+  //     // Try MP3 first
+  //     if (mp3FileExists("startup_chime.mp3")) {
+  //       ESP_LOGI("AUDIO_TEST", "Playing MP3 startup sound");
+  //       playMP3File("startup_chime.mp3"); // Blocking
+  //     } else {
+  //       sfxPlay("startup"); 
+  //     }
+  //   } else {
+  //     ESP_LOGW("AUDIO_TEST", "Audio system not available");
+  //   }
+  // #else
+  //   sfxPlay("startup");
+  // #endif
   sfxPlay("startup");
+
   if (areHapticsActive()) {
     pulseVibration(100, 1200);
   }

@@ -536,7 +536,10 @@ void drawDigitalClock(void) {
     }
 
     // Update date only if it changed
-    if (strcmp(dateStr, lastDateStr) != 0) {
+    bool dateChanged = (strcmp(dateStr, lastDateStr) != 0);
+    bool forceUpdateInvalid = (!timeValid && strcmp(dateStr, "TIME NOT SET") == 0);
+
+    if (dateChanged || forceUpdateInvalid) {
         // Draw new date box
         int boxWidth = DISPLAY_WIDTH;
         int boxHeight = 13;

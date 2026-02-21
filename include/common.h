@@ -24,6 +24,7 @@
 #define BYTE_MODE 3
 
 #define SERIES_2 true
+#define AXP2101 true
 
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 128
@@ -83,6 +84,12 @@ String getDisplayInfo();
  * @return true if SERIES_2 features are enabled, false otherwise
  */
 bool checkHardwareSupport();
+
+/**
+ * @brief Check if AXP2101 hardware features are supported
+ * @return true if AXP2101 features are enabled, false otherwise
+ */
+bool checkAXPSupport();
 
 //==============================================================================
 // STRING UTILITY FUNCTIONS

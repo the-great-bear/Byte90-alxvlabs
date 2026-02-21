@@ -4,7 +4,6 @@
  */
 
 #include "speaker_module.h"
-#include "speaker_mp3.h"
 #include "common.h"
 #include "preferences_module.h"
 #include "driver/i2s.h"
@@ -63,13 +62,11 @@ void setSpeakerDebug(bool enabled) {
 // GLOBAL VARIABLES
 //==============================================================================
 
-Audio *audio = nullptr;
-
 static bool g_audioInitialized = false;
 static bool g_audioShutdown = false;
-static audio_mode_t g_audioMode = AUDIO_MODE_SHUTDOWN;
+audio_mode_t g_audioMode = AUDIO_MODE_SHUTDOWN;
 static bool g_beepInProgress = false;
-static bool g_i2sInitializedForBeep = false;
+bool g_i2sInitializedForBeep = false;
 static float g_sinePhase = 0.0f;
 
 //==============================================================================
@@ -77,62 +74,60 @@ static float g_sinePhase = 0.0f;
 //==============================================================================
 
 /**
- * @brief Clean up Audio library and free I2S
- */
-static void cleanupAudioLibrary() {
-  if (audio) {
-    ESP_LOGE(SPEAKER_LOG, "Cleaning up Audio library");
-    audio->stopSong();
-    delete audio;
-    audio = nullptr;
-    vTaskDelay(pdMS_TO_TICKS(50));
-  }
-}
-
-/**
- * @brief Configure I2S system
- * @param pinsOnly If true, only configure pins; if false, configure full I2S system
+ * @brief Configure I2S peripheral
  * @return true if configuration successful
  */
-static bool configureI2SSystem(bool pinsOnly = false) {
+static bool configureI2S() {
   if (!checkHardwareSupport())
     return false;
 
-  if (!pinsOnly) {
-    // Configure I2S peripheral first
-    esp_err_t uninstall_err = i2s_driver_uninstall(I2S_NUM);
-    if (uninstall_err == ESP_OK) {
-      ESP_LOGE(SPEAKER_LOG, "Uninstalled existing I2S driver");
-      vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-    i2s_config_t i2s_config = {
-        .mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate = I2S_SAMPLE_RATE,
-        .bits_per_sample = I2S_BITS_PER_SAMPLE,
-        .channel_format = I2S_CHANNEL_FORMAT,
-        .communication_format = static_cast<i2s_comm_format_t>(I2S_COMM_FORMAT_STAND_I2S),
-        .intr_alloc_flags = ESP_INTR_FLAG_LEVEL2,
-        .dma_buf_count = 2,
-        .dma_buf_len = 64,
-        .use_apll = false,
-        .tx_desc_auto_clear = true,
-        .fixed_mclk = 0};
-
-    esp_err_t err = i2s_driver_install(I2S_NUM, &i2s_config, 0, NULL);
-    if (err != ESP_OK) {
-      ESP_LOGE(SPEAKER_LOG, "Failed to install I2S driver: %s", esp_err_to_name(err));
-      return false;
-    }
-
-    i2s_zero_dma_buffer(I2S_NUM);
-    i2s_stop(I2S_NUM);
+  // Uninstall existing driver
+  esp_err_t uninstall_err = i2s_driver_uninstall(I2S_NUM);
+  if (uninstall_err == ESP_OK) {
+    ESP_LOGE(SPEAKER_LOG, "Uninstalled existing I2S driver");
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 
-  // Configure I2S pins
+  // Set channel format based on AXP2101 flag
+  // If AXP2101 is false, use LEFT CHANNEL only; otherwise use RIGHT_LEFT (stereo)
+  //i2s_channel_fmt_t channel_format = checkAXPSupport() ? I2S_CHANNEL_FMT_RIGHT_LEFT : I2S_CHANNEL_FMT_ONLY_LEFT;
+
+  i2s_config_t i2s_config = {
+      .mode = static_cast<i2s_mode_t>(I2S_MODE_MASTER | I2S_MODE_TX),
+      .sample_rate = I2S_SAMPLE_RATE,
+      .bits_per_sample = I2S_BITS_PER_SAMPLE,
+      .channel_format = I2S_CHANNEL_FORMAT,
+      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+      .dma_buf_count = 2,
+      .dma_buf_len = 64,
+      .use_apll = false,
+      .tx_desc_auto_clear = true,
+      .fixed_mclk = 0};
+
+  esp_err_t err = i2s_driver_install(I2S_NUM, &i2s_config, 0, NULL);
+  if (err != ESP_OK) {
+    ESP_LOGE(SPEAKER_LOG, "Failed to install I2S driver: %s", esp_err_to_name(err));
+    return false;
+  }
+
+  i2s_zero_dma_buffer(I2S_NUM);
+  i2s_stop(I2S_NUM);
+
+  return true;
+}
+
+/**
+ * @brief Configure I2S pins
+ * @return true if pin configuration successful
+ */
+static bool configureI2SPins() {
+  if (!checkHardwareSupport())
+    return false;
+
   i2s_pin_config_t pin_config = {
       .bck_io_num = I2S_BCK_IO,
-      .ws_io_num = I2S_PIN_NO_CHANGE,
+      .ws_io_num = I2S_WS_IO,
       .data_out_num = I2S_DO_IO,
       .data_in_num = I2S_PIN_NO_CHANGE};
 
@@ -168,11 +163,7 @@ static void generateSineWave(int16_t *buffer, size_t samples, uint16_t frequency
   }
 }
 
-/**
- * @brief MP3 end of file callback
- * @param info EOF information
- */
-// MP3 EOF handling moved to speaker_mp3 module
+// MP3 functionality removed
 
 //==============================================================================
 // PUBLIC API FUNCTIONS
@@ -212,25 +203,13 @@ bool initializeSpeaker(bool checkPreferences) {
 
   ESP_LOGE(SPEAKER_LOG, "Initializing speaker module...");
 
-  if (getFSStatus()) {
-    ESP_LOGE(SPEAKER_LOG, "Filesystem already initialized - ready for MP3 playback");
-  } else {
-    ESP_LOGW(SPEAKER_LOG, "Filesystem not available - MP3 playback will be unavailable");
-    ESP_LOGW(SPEAKER_LOG, "Note: Filesystem should be initialized before audio module");
-  }
+  // Filesystem check removed - MP3 functionality disabled
 
   vTaskDelay(pdMS_TO_TICKS(50));
 
   g_audioInitialized = true;
   g_audioShutdown = false;
   g_audioMode = AUDIO_MODE_IDLE;
-
-  // Initialize MP3 decoder
-  if (!initMP3Decoder()) {
-    ESP_LOGW(SPEAKER_LOG, "MP3 decoder initialization failed - MP3 playback will be unavailable");
-  } else {
-    speakerDebug("MP3 decoder initialized successfully");
-  }
 
   ESP_LOGE(SPEAKER_LOG, "Speaker module initialized successfully");
   ESP_LOGE(SPEAKER_LOG, "I2S Pins - BCLK: %d, LRCLK: GND, DOUT: %d", I2S_BCK_IO, I2S_DO_IO);
@@ -261,32 +240,10 @@ void shutdownAudio(bool saveAsDisabled) {
   g_audioShutdown = true;
   g_audioMode = AUDIO_MODE_SHUTDOWN;
 
-  // Stop MP3 playback if active
-  if (isMP3Playing()) {
-    ESP_LOGE(SPEAKER_LOG, "Stopping MP3 playback...");
-    stopMP3Playback(true);
-    vTaskDelay(pdMS_TO_TICKS(50));
-  }
-
   if (g_beepInProgress) {
     ESP_LOGE(SPEAKER_LOG, "Stopping beep generation...");
     g_beepInProgress = false;
     vTaskDelay(pdMS_TO_TICKS(10));
-  }
-
-  if (audio != nullptr) {
-    ESP_LOGE(SPEAKER_LOG, "Cleaning up Audio library...");
-    try {
-      audio->stopSong();
-      vTaskDelay(pdMS_TO_TICKS(20));
-      delete audio;
-      audio = nullptr;
-      ESP_LOGE(SPEAKER_LOG, "Audio library cleaned up successfully");
-    } catch (...) {
-      ESP_LOGE(SPEAKER_LOG, "Exception during Audio library cleanup");
-      audio = nullptr;
-    }
-    vTaskDelay(pdMS_TO_TICKS(50));
   }
 
   if (g_i2sInitializedForBeep) {
@@ -320,8 +277,7 @@ void shutdownAudio(bool saveAsDisabled) {
   g_i2sInitializedForBeep = false;
   g_audioInitialized = false;
 
-  // Shutdown MP3 decoder
-  shutdownMP3Decoder();
+  // MP3 decoder shutdown removed - MP3 functionality disabled
 
   if (saveAsDisabled) {
     setAudioEnabled(false);
@@ -329,22 +285,6 @@ void shutdownAudio(bool saveAsDisabled) {
   }
 
   ESP_LOGE(SPEAKER_LOG, "Audio system shutdown complete");
-}
-
-bool restartAudio() {
-    if (!checkHardwareSupport()) return false;
-
-    if (g_audioInitialized && !g_audioShutdown) {
-        ESP_LOGW(SPEAKER_LOG, "Audio already running");
-        return true;
-    }
-
-    ESP_LOGE(SPEAKER_LOG, "Restarting audio system...");
-    
-    g_audioShutdown = false;
-    g_audioInitialized = false;
-    
-    return initializeSpeaker(true);
 }
 
 audio_state_t getAudioState() {
@@ -360,66 +300,29 @@ audio_state_t getAudioState() {
     return AUDIO_STATE_NOT_READY;
   }
 
-  if ((g_audioMode == AUDIO_MODE_MP3) || (g_audioMode == AUDIO_MODE_BEEP) || g_beepInProgress) {
+  if ((g_audioMode == AUDIO_MODE_BEEP) || g_beepInProgress) {
     return AUDIO_STATE_PLAYING;
   }
 
   return AUDIO_STATE_READY;
 }
 
-
-
-bool stopAudio(bool cleanup) {
-  audio_state_t audioState = getAudioState();
-  if (audioState != AUDIO_STATE_READY && audioState != AUDIO_STATE_PLAYING) {
-    return false;
-  }
-
-  bool wasStopped = false;
-
-  // Stop MP3 playback if active
-  if (isMP3Playing()) {
-    stopMP3Playback(cleanup);
-    wasStopped = true;
-    ESP_LOGE(SPEAKER_LOG, "MP3 playback stopped");
-  }
-
-  if (g_beepInProgress) {
-    g_beepInProgress = false;
-    wasStopped = true;
-  }
-
-  g_audioMode = AUDIO_MODE_IDLE;
-
-  return wasStopped;
-}
-
 void playBeep(uint16_t frequency, uint16_t duration, uint8_t volume) {
   if (!checkHardwareSupport())
     return;
 
-  audio_state_t audioState = getAudioState();
-  if ((audioState != AUDIO_STATE_READY && audioState != AUDIO_STATE_PLAYING) || g_audioShutdown) {
-    ESP_LOGW(SPEAKER_LOG, "Audio not ready or shutting down - skipping beep");
+  if (!g_audioInitialized || g_audioShutdown) {
+    ESP_LOGW(SPEAKER_LOG, "Audio not ready - skipping beep");
     return;
   }
 
-  if (isMP3Playing()) {
-    ESP_LOGE(SPEAKER_LOG, "Stopping MP3 to play beep");
-    stopMP3Playback(true);
-    vTaskDelay(pdMS_TO_TICKS(50));
-
-    if (g_audioShutdown) {
-      ESP_LOGW(SPEAKER_LOG, "Audio shutdown detected during MP3 cleanup - aborting beep");
-      return;
-    }
-  }
+  // MP3 stop for beep removed - MP3 functionality disabled
 
   g_audioMode = AUDIO_MODE_BEEP;
   g_beepInProgress = true;
 
   if (!g_i2sInitializedForBeep) {
-    if (configureI2SSystem()) {
+    if (configureI2S() && configureI2SPins())  {
       g_i2sInitializedForBeep = true;
     } else {
       ESP_LOGE(SPEAKER_LOG, "Failed to initialize I2S for beep");
@@ -478,15 +381,4 @@ void playBeep(uint16_t frequency, uint16_t duration, uint8_t volume) {
 
   g_beepInProgress = false;
   g_audioMode = AUDIO_MODE_IDLE;
-}
-
-// MP3 playback functions moved to speaker_mp3 module
-
-void audioLoop() {
-  audio_state_t audioState = getAudioState();
-  if (audioState != AUDIO_STATE_READY && audioState != AUDIO_STATE_PLAYING)
-    return;
-
-  // Handle MP3 playback through the MP3 module
-  mp3Loop();
 }

@@ -64,6 +64,7 @@ uint8_t scanI2CDevices(void) {
         return 0;
     }
     
+    ESP_LOGI(I2C_LOG, "Scanning I2C bus...");
     uint8_t deviceCount = 0;
     
     for (uint8_t address = 1; address < 127; address++) {
@@ -73,14 +74,22 @@ uint8_t scanI2CDevices(void) {
         if (error == 0) {
             deviceCount++;
             
+            // Log the device with identification
             switch (address) {
+                case 0x34:
+                    ESP_LOGI(I2C_LOG, "Found device at 0x%02X - AXP2101 PMIC", address);
+                    break;
                 case 0x53:
+                    ESP_LOGI(I2C_LOG, "Found device at 0x%02X - ADXL345 Accelerometer", address);
                     break;
                 case 0x51:
+                    ESP_LOGI(I2C_LOG, "Found device at 0x%02X - PCF8563 RTC", address);
                     break;
                 case 0x5A:
+                    ESP_LOGI(I2C_LOG, "Found device at 0x%02X - DRV2605 Haptic Driver", address);
                     break;
                 default:
+                    ESP_LOGI(I2C_LOG, "Found device at 0x%02X - Unknown device", address);
                     break;
             }
         }
@@ -88,6 +97,8 @@ uint8_t scanI2CDevices(void) {
     
     if (deviceCount == 0) {
         ESP_LOGW(I2C_LOG, "No I2C devices found!");
+    } else {
+        ESP_LOGI(I2C_LOG, "I2C scan complete - found %d device(s)", deviceCount);
     }
     
     return deviceCount;

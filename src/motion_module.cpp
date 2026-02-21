@@ -425,79 +425,50 @@ void handleDeepSleep() {
 }
 
 /**
- * @brief Detect tap and double-tap events using the accelerometer
+ * @brief Detect tap and double-tap events by polling interrupt source register
  * 
- * Monitors the ADXL345 interrupt pin and processes tap/double-tap events.
- * Uses hardware interrupt detection for accurate timing and distinguishes
- * between single taps and double taps based on interrupt source.
+ * Polls the ADXL345 INT_SOURCE register to detect tap/double-tap events without
+ * requiring physical connection to interrupt pins. Reads interrupt status and
+ * tap axis information to determine tap type and location.
  */
 void detectTapping() {
-  if (digitalRead(INTERRUPT_PIN_D1) != HIGH)
-    return;
-
+  // Poll INT_SOURCE register instead of checking interrupt pin
   uint8_t intSource = readRegister(ADXL345_REG_INT_SOURCE);
+  
+  // Check if any tap interrupt occurred
+  if (!(intSource & (ADXL345_INT_SOURCE_SINGLETAP | ADXL345_INT_SOURCE_DOUBLETAP))) {
+    return;  // No tap detected
+  }
+  
+  // Read tap axis information
   uint8_t tapStatus = readRegister(ADXL345_REG_ACT_TAP_STATUS);
 
-  if (tapStatus & ADXL345_TAP_SOURCE_Z) {
-    if (intSource & ADXL345_INT_SOURCE_DOUBLETAP) {
-      setMotionState(MotionStateType::DOUBLE_TAPPED, true);
-      if (areHapticsActive()) {
-        playHapticEffect(HAPTIC_SHARP_CLICK_100);
-      }
-      return;
-    }
-
-    if (intSource & ADXL345_INT_SOURCE_SINGLETAP) {
-      ESP_LOGI("BYTE-90", "Single tap Z detected");
-      setMotionState(MotionStateType::TAPPED, true);
-      if (areHapticsActive()) {
-        playHapticEffect(HAPTIC_SHARP_CLICK_100);
-      }
-      return;
-    }
-  }
-
-  if (tapStatus & ADXL345_TAP_SOURCE_Y) {
-    if (intSource & ADXL345_INT_SOURCE_DOUBLETAP) {
-      setMotionState(MotionStateType::DOUBLE_TAPPED, true);
-      if (areHapticsActive()) {
-        playHapticEffect(HAPTIC_SHARP_CLICK_100);
-      }
-      return;
-    }
-  }
-
-  if (tapStatus & ADXL345_TAP_SOURCE_X) {
-    if (intSource & ADXL345_INT_SOURCE_DOUBLETAP) {
-      setMotionState(MotionStateType::DOUBLE_TAPPED, true);
-      if (areHapticsActive()) {
-        playHapticEffect(HAPTIC_SHARP_CLICK_100);
-      }
-      return;
-    }
-
-    if (intSource & ADXL345_INT_SOURCE_SINGLETAP) {
-      setMotionState(MotionStateType::TAPPED, true);
-      if (areHapticsActive()) {
-        playHapticEffect(HAPTIC_SHARP_CLICK_100);
-      }
-      return;
-    }
-  }
-
+  // Check for double tap first (takes priority)
   if (intSource & ADXL345_INT_SOURCE_DOUBLETAP) {
     setMotionState(MotionStateType::DOUBLE_TAPPED, true);
     if (areHapticsActive()) {
       playHapticEffect(HAPTIC_DOUBLE_CLICK_100);
     }
+    // Reading INT_SOURCE clears the interrupt
     return;
   }
 
+  // Check for single tap
   if (intSource & ADXL345_INT_SOURCE_SINGLETAP) {
+    // Log which axis was tapped if needed
+    if (tapStatus & ADXL345_TAP_SOURCE_Z) {
+      ESP_LOGI("BYTE-90", "Single tap Z detected");
+    } else if (tapStatus & ADXL345_TAP_SOURCE_Y) {
+      ESP_LOGI("BYTE-90", "Single tap Y detected");
+    } else if (tapStatus & ADXL345_TAP_SOURCE_X) {
+      ESP_LOGI("BYTE-90", "Single tap X detected");
+    }
+    
     setMotionState(MotionStateType::TAPPED, true);
     if (areHapticsActive()) {
       playHapticEffect(HAPTIC_SHARP_CLICK_100);
     }
+    // Reading INT_SOURCE clears the interrupt
   }
 }
 

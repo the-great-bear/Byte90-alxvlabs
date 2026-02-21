@@ -19,6 +19,11 @@
 
 static const char *ADXL_LOG = "::ADXL_MODULE::";
 
+#if SERIES_2
+  #define WAKEUP_PIN D9
+#else
+  #define WAKEUP_PIN A3
+#endif
 #define INT_PIN_BITMASK (1ULL << GPIO_NUM_1)
 #define INTERRUPT_PIN_D1 D1
 #define SDA_PIN_D4 D4

@@ -102,6 +102,18 @@ bool checkHardwareSupport() {
 #endif
 }
 
+/**
+ * @brief Check if AXP2101 hardware features are supported
+ * @return true if AXP2101 features are enabled, false otherwise
+ */
+bool checkAXPSupport() {
+  #if AXP2101
+    return true;
+  #else
+    return false;
+  #endif
+  }
+
 
 //==============================================================================
 // STRING UTILITY FUNCTIONS

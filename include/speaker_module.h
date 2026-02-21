@@ -9,7 +9,6 @@
 #include "common.h"
 #include <Arduino.h>
 #include <Preferences.h>
-#include "Audio.h"
 #include "flash_module.h"
 #include "speaker_common.h"
 
@@ -37,23 +36,10 @@ bool initializeSpeaker(bool checkPreferences = true);
 void shutdownAudio(bool saveAsDisabled = false);
 
 /**
- * @brief Restart audio system after shutdown
- * @return true if restart successful, false otherwise
- */
-bool restartAudio(void);
-
-/**
  * @brief Get comprehensive audio system state
  * @return audio_state_t indicating current state
  */
 audio_state_t getAudioState(void);
-
-/**
- * @brief Stop any currently playing audio
- * @param cleanup If true, deletes Audio object; if false, just stops playback
- * @return true if stopped successfully, false otherwise
- */
-bool stopAudio(bool cleanup = true);
 
 /**
  * @brief Generate and play a single beep - Core audio function
@@ -62,13 +48,6 @@ bool stopAudio(bool cleanup = true);
  * @param volume Volume level (0-100)
  */
 void playBeep(uint16_t frequency, uint16_t duration, uint8_t volume);
-
-// MP3 functions moved to speaker_mp3.h
-
-/**
- * @brief Audio loop function for core speaker operations
- */
-void audioLoop(void);
 
 /**
  * @brief Enable or disable debug logging for speaker operations

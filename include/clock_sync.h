@@ -19,6 +19,10 @@
 
 static const char *CLOCK_SYNC_LOG = "::CLOCK_SYNC::";
 
+// NTP Server Configuration
+#define NTP_SERVER_CHINA      "ntp.aliyun.com"     // For China timezone
+#define NTP_SERVER_DEFAULT    "time.windows.com"   // For all other timezones
+
 //==============================================================================
 // TYPE DEFINITIONS
 //==============================================================================

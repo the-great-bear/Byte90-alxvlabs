@@ -13,27 +13,22 @@
 // CONSTANTS & DEFINITIONS
 //==============================================================================
 
-// I2S Configuration (shared between speaker_module and speaker_mp3)
+// IMPORTANT: I2S_WS_IO is assigned to A1 for SERIES_2 REVISION 2 that supports AXP2101.
+// FOR SERIES_2 REVISION 1, I2S_WS_IO is just a dummy pin and not used. Because of this REVISION 1 does not support other audio formats such as wave or mp3.
+// This was a hardware constraint with the LRCLK pin being tied to GND. REVISION 2 wires it to A1 which was previously used for ADXL345 INT pin.
+
+// IMPORTANT: For SERIES 2 REVISION 1, MP3 and WAV audio is not supported because of the hardware constraint mentioned above.
+
+// I2S Configuration is for code generated sounds only for now.
 #define I2S_NUM I2S_NUM_0
 #define I2S_SAMPLE_RATE 44100
 #define I2S_BITS_PER_SAMPLE I2S_BITS_PER_SAMPLE_24BIT
-#define I2S_CHANNEL_FORMAT I2S_CHANNEL_FMT_ONLY_LEFT
+#define I2S_CHANNEL_FORMAT I2S_CHANNEL_FMT_RIGHT_LEFT // SD_MODE pulled up to VDD via 634k resistor
 
 // I2S Pin Configuration (shared between speaker_module and speaker_mp3)
 #define I2S_BCK_IO A3
-#define I2S_WS_IO I2S_PIN_NO_CHANGE
+#define I2S_WS_IO A1
 #define I2S_DO_IO A2
-
-// Beep Configuration (from speaker_module)
-#define BEEP_FREQUENCY 800
-#define BEEP_DURATION 150
-#define BEEP_COUNT 6
-#define BEEP_VOLUME 30
-#define BEEP_PAUSE 100
-
-// MP3 Configuration (from speaker_mp3)
-#define MP3_DEFAULT_VOLUME 1
-#define SOUNDS_FOLDER "/sounds/"
 
 //==============================================================================
 // TYPE DEFINITIONS
@@ -45,7 +40,6 @@
 typedef enum {
     AUDIO_MODE_IDLE,
     AUDIO_MODE_BEEP,
-    AUDIO_MODE_MP3,
     AUDIO_MODE_SHUTDOWN
 } audio_mode_t;
 
@@ -59,16 +53,12 @@ typedef enum {
     AUDIO_STATE_PLAYING
 } audio_state_t;
 
-/**
- * @brief MP3 playback states (from speaker_mp3)
- */
-typedef enum {
-    MP3_STATE_IDLE,
-    MP3_STATE_LOADING,
-    MP3_STATE_PLAYING,
-    MP3_STATE_PAUSED,
-    MP3_STATE_ERROR
-} mp3_state_t;
+//==============================================================================
+// SHARED STATE VARIABLES 
+//==============================================================================
+
+extern bool g_i2sInitializedForBeep;  // Track I2S state for beep mode
+extern audio_mode_t g_audioMode;  // Current audio mode
 
 
 #endif /* SPEAKER_COMMON_H */

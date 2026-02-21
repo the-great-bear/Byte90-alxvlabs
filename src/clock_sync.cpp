@@ -148,6 +148,30 @@ static void updateSyncStatus(time_sync_source_t source, bool success) {
   }
 }
 
+/**
+ * @brief Select NTP server based on timezone
+ * @param tzString Timezone string to check (e.g., "CST-8", "EST5EDT,M3.2.0,M11.1.0")
+ * @return Pointer to NTP server string
+ */
+static const char* selectNTPServerByTimezone(const char* tzString) {
+  if (!tzString) {
+    clockSyncDebug("Invalid timezone string, using default NTP server: %s", NTP_SERVER_DEFAULT);
+    return NTP_SERVER_DEFAULT;
+  }
+  
+  // Check if China timezone (by string match)
+  // China timezone uses "CST-8" format
+  if (strcmp(tzString, "CST-8") == 0 || 
+      strstr(tzString, "CST-8") != NULL) {
+    clockSyncDebug("China timezone detected, using %s", NTP_SERVER_CHINA);
+    return NTP_SERVER_CHINA;
+  }
+  
+  // Default for all other timezones
+  clockSyncDebug("Using default NTP server: %s", NTP_SERVER_DEFAULT);
+  return NTP_SERVER_DEFAULT;
+}
+
 //==============================================================================
 // INITIALIZATION & SHUTDOWN
 //==============================================================================
@@ -376,7 +400,8 @@ static bool parseTimezoneString(const char* timezoneString, int* gmtOffsetHours,
     setenv("TZ", timezoneString, 1);
     tzset();
     delay(100);
-    configTime(0, 0, "time.google.com");
+    const char* ntpServer = selectNTPServerByTimezone(timezoneString);
+    configTime(0, 0, ntpServer);
     return true;
   } else if (strcmp(timezoneString, "AWST-8") == 0) {
     *gmtOffsetHours = 8;
@@ -399,7 +424,8 @@ static bool parseTimezoneString(const char* timezoneString, int* gmtOffsetHours,
     setenv("TZ", timezoneString, 1);
     tzset();
     delay(100);
-    configTime(0, 0, "time.google.com");
+    const char* ntpServer = selectNTPServerByTimezone(timezoneString);
+    configTime(0, 0, ntpServer);
     return true;
   }
 
@@ -457,11 +483,15 @@ static int calculateDSTOffset(const char* timezoneString, int baseOffsetHours) {
 static bool performNTPSync(int gmtOffsetSeconds) {
   clockSyncDebug("Using direct GMT offset: UTC%+d for timezone: %s",
            gmtOffsetSeconds / 3600, currentTimezoneString);
-  configTime(gmtOffsetSeconds, 0, "time.google.com");
 
-  // Wait up to 15 seconds for time sync (increased for better reliability)
+  const char* ntpServer = selectNTPServerByTimezone(currentTimezoneString);
+
+  clockSyncDebug("Attempting NTP sync with server: %s", ntpServer);
+  configTime(gmtOffsetSeconds, 0, ntpServer);
+
+  // Attempt to sync time for 10 times
   int attempts = 0;
-  while (attempts < 30) {
+  while (attempts < 10) {
     time_t now = time(nullptr);
     if (now > 1000000000) { // Valid timestamp (after year 2001)
       clockSyncDebug("NTP time sync successful with timezone: %s", currentTimezoneString);
@@ -471,7 +501,7 @@ static bool performNTPSync(int gmtOffsetSeconds) {
     attempts++;
   }
 
-  ESP_LOGW(CLOCK_SYNC_LOG, "NTP time sync timeout");
+  ESP_LOGW(CLOCK_SYNC_LOG, "NTP time sync timeout with server: %s", ntpServer);
   return false;
 }
 
