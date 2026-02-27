@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BYTE-90 WiFi Setup</title>
+    <script type="module" crossorigin src="/portal/index-BSe-wonQ.js"></script>
+    <link rel="stylesheet" crossorigin href="/portal/index-A8th-F1o.css">
+  </head>
+  <body>
+    <main role="main" aria-label="BYTE-90 Device Manager">
+      <div id="byte90Logo" class="byte90-logo" aria-hidden="true"></div>
+
+      <div class="connected-components">
+        <div id="wifiStatusCard" class="wifi-status-card" hidden>
+          <div class="wifi-status-card__content">
+            <div class="wifi-status-card__status">
+              <span class="card-icon" id="wifiStatusIcon"></span>
+              <span class="wifi-status-card__label">Connected</span>
+              <span id="wifiStatusNetwork" class="wifi-status-card__network"></span>
+            </div>
+            <div class="wifi-status-card__actions">
+              <button
+                id="disconnectBtn"
+                class="btn btn-outline-inverse"
+                type="button"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="wifiCard" class="card-component">
+          <div class="card-component__container">
+            <div class="card-component__header">
+              <span class="card-icon" id="wifiCardIcon"></span>
+              <h2 class="card-component__title">WiFi</h2>
+            </div>
+            <div class="card-component__content">
+              <div
+                id="connectionNotification"
+                class="connection-notification"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              ></div>
+
+              <div class="networks">
+                <span id="network-list-label" hidden>Available networks</span>
+                <ul
+                  id="networkList"
+                  class="networks__list"
+                  role="listbox"
+                  aria-labelledby="network-list-label"
+                  tabindex="0"
+                ></ul>
+              </div>
+
+              <div class="wifi-connection-form">
+                <div class="form-control">
+                  <label for="password">WiFi Password</label>
+                  <div class="form-control__input-wrapper">
+                    <input
+                      id="password"
+                      type="password"
+                      placeholder="Enter network password"
+                    />
+                    <button
+                      id="togglePasswordBtn"
+                      class="password-toggle-btn"
+                      type="button"
+                      aria-label="Show password"
+                    ></button>
+                  </div>
+                </div>
+                <div class="card-actions wifi-connection-form__actions">
+                  <button
+                    id="scanBtn"
+                    class="btn btn-secondary"
+                    type="button"
+                  >
+                    Scan Network
+                  </button>
+                  <button
+                    id="connectBtn"
+                    class="btn btn-primary"
+                    type="button"
+                  >
+                    Connect
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="openAiCard" class="card-component">
+          <div class="card-component__container">
+            <div class="card-component__header">
+              <span class="card-icon" id="openAiCardIcon"></span>
+              <h2 class="card-component__title">OpenAI Real Time API</h2>
+            </div>
+            <div class="card-component__content">
+              <div
+                id="openAiNotification"
+                class="connection-notification"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              ></div>
+
+              <div class="form-control">
+                <label for="openAiApiKeyInput">API Key</label>
+                <div class="form-control__input-wrapper">
+                  <input
+                    id="openAiApiKeyInput"
+                    type="text"
+                    placeholder="Enter API key"
+                    autocomplete="off"
+                    inputmode="text"
+                  />
+                </div>
+              </div>
+
+              <div class="card-actions wifi-connection-form__actions">
+                <button
+                  id="openAiClearBtn"
+                  class="btn btn-secondary"
+                  type="button"
+                >
+                  Clear
+                </button>
+                <button
+                  id="openAiSaveBtn"
+                  class="btn btn-primary"
+                  type="button"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="timezoneLocationCard" class="card-component">
+          <div class="card-component__container">
+            <div class="card-component__header">
+              <span class="card-icon" id="timezoneLocationCardIcon"></span>
+              <h2 class="card-component__title">Timezone &amp; Location</h2>
+            </div>
+            <div class="card-component__content">
+              <div
+                id="timezoneLocationNotification"
+                class="connection-notification"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              ></div>
+
+              <div class="form-control">
+                <label for="timezoneSelect">Timezone</label>
+                <div class="form-control__input-wrapper">
+                  <select id="timezoneSelect" aria-label="Timezone">
+                    <option value="">Select timezone</option>
+                  </select>
+                  <span id="selectIcon" class="select-icon"></span>
+                </div>
+              </div>
+
+              <div class="form-control">
+                <label for="locationInput">Location</label>
+                <div class="form-control__input-wrapper">
+                  <input
+                    id="locationInput"
+                    type="text"
+                    placeholder="Enter city (e.g., Toronto)"
+                    autocomplete="off"
+                    inputmode="text"
+                  />
+                </div>
+              </div>
+
+              <div class="form-control">
+                <div class="switch-container">
+                  <button
+                    class="switch"
+                    type="button"
+                    id="clockModeToggle"
+                    data-color="var(--c-primary)"
+                    data-action="aria-switch"
+                    aria-label="Enable Clock Mode"
+                    aria-checked="false"
+                    role="switch"
+                  ></button>
+                  <span class="switch-label">Enable Clock Mode</span>
+                </div>
+              </div>
+
+              <div class="card-actions wifi-connection-form__actions">
+                <button
+                  id="timezoneLocationClearBtn"
+                  class="btn btn-secondary"
+                  type="button"
+                >
+                  Clear
+                </button>
+                <button
+                  id="timezoneLocationSaveBtn"
+                  class="btn btn-primary"
+                  type="button"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="customizeCard" class="card-component">
+          <div class="card-component__container">
+            <div class="card-component__header">
+              <span class="card-icon" id="customizeCardIcon"></span>
+              <h2 class="card-component__title">Customize</h2>
+            </div>
+            <div class="card-component__content">
+              <div
+                id="customizeNotification"
+                class="connection-notification"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              ></div>
+
+              <div class="form-control">
+                <label for="effectSelect">Effect</label>
+                <div class="form-control__input-wrapper">
+                  <select id="effectSelect" aria-label="Effect">
+                    <option value="none">None</option>
+                    <option value="scanlines">Scanlines</option>
+                    <option value="dot_matrix">Dot matrix</option>
+                    <option value="glitch">Glitch</option>
+                    <option value="multiple" disabled>Multiple enabled</option>
+                  </select>
+                  <span class="select-icon"></span>
+                </div>
+              </div>
+
+              <div class="form-control">
+                <label for="tintSelect">Tint</label>
+                <div class="form-control__input-wrapper">
+                  <select id="tintSelect" aria-label="Tint">
+                    <option value="none">None</option>
+                    <option value="green">Green</option>
+                    <option value="blue">Blue</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="custom" disabled>Custom</option>
+                  </select>
+                  <span class="select-icon"></span>
+                </div>
+              </div>
+
+              <div class="card-actions wifi-connection-form__actions">
+                <button
+                  id="customizeClearBtn"
+                  class="btn btn-secondary"
+                  type="button"
+                >
+                  Clear Effects
+                </button>
+                <button
+                  id="customizeApplyBtn"
+                  class="btn btn-primary"
+                  type="button"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="audioSettingsCard" class="card-component">
+          <div class="card-component__container">
+            <div class="card-component__header">
+              <span class="card-icon" id="audioSettingsCardIcon"></span>
+              <h2 class="card-component__title">Audio Settings</h2>
+            </div>
+            <div class="card-component__content">
+              <div
+                id="audioSettingsNotification"
+                class="connection-notification"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              ></div>
+
+              <div class="form-control">
+                <label for="audioVolumeRange">Volume</label>
+                <div class="range-slider">
+                  <input
+                    class="range-slider__range"
+                    id="audioVolumeRange"
+                    type="range"
+                    value="70"
+                    min="0"
+                    max="100"
+                  />
+                  <span class="range-slider__value" id="audioVolumeValue">70</span>
+                </div>
+              </div>
+
+              <div class="form-control">
+                <div class="switch-container">
+                  <button
+                    class="switch"
+                    type="button"
+                    id="audioDisableToggle"
+                    data-color="var(--c-primary)"
+                    data-action="aria-switch"
+                    aria-label="Disable Audio"
+                    aria-checked="false"
+                    role="switch"
+                  ></button>
+                  <span class="switch-label">Disable Audio</span>
+                </div>
+              </div>
+
+              <div class="card-actions wifi-connection-form__actions">
+                <button
+                  id="audioResetBtn"
+                  class="btn btn-secondary"
+                  type="button"
+                >
+                  Reset
+                </button>
+                <button
+                  id="audioApplyBtn"
+                  class="btn btn-primary"
+                  type="button"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+  </body>
+</html>

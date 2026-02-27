@@ -1,0 +1,874 @@
+/* CSS RESET*/
+*:where(
+  :not(html, iframe, canvas, img, svg, video, audio):not(svg *, symbol *)
+) {
+  all: unset;
+  display: revert;
+}
+
+/* Preferred box-sizing value */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Fix mobile Safari increase font-size on landscape mode */
+html {
+  -moz-text-size-adjust: none;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+
+/* Reapply the pointer cursor for anchor tags */
+a,
+button {
+  cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px auto -webkit-focus-ring-color;
+  outline-offset: 3px;
+}
+
+/* Remove list styles (bullets/numbers) */
+ol,
+ul,
+menu,
+summary {
+  list-style: none;
+}
+
+/* For images to not be able to exceed their container */
+img {
+  max-inline-size: 100%;
+  max-block-size: 100%;
+}
+
+/* removes spacing between cells in tables */
+table {
+  border-collapse: collapse;
+}
+
+/* Safari - solving issue when using user-select:none on the <body> text input doesn't working */
+input,
+textarea {
+  -webkit-user-select: auto;
+}
+
+/* revert the 'white-space' property for textarea elements on Safari */
+textarea {
+  white-space: revert;
+}
+
+/* minimum style to allow to style meter element */
+meter {
+  -webkit-appearance: revert;
+  appearance: revert;
+}
+
+/* preformatted text - use only for this feature */
+:where(pre) {
+  all: revert;
+  box-sizing: border-box;
+}
+
+/* reset default text opacity of input placeholder */
+::placeholder {
+  color: unset;
+}
+
+/* fix the feature of 'hidden' attribute.
+ display:revert; revert to element instead of attribute */
+:where([hidden]) {
+  display: none;
+}
+
+/* revert for bug in Chromium browsers
+ - fix for the content editable attribute will work properly.
+ - webkit-user-select: auto; added for Safari in case of using user-select:none on wrapper element*/
+:where([contenteditable]:not([contenteditable='false'])) {
+  -moz-user-modify: read-write;
+  -webkit-user-modify: read-write;
+  overflow-wrap: break-word;
+  -webkit-line-break: after-white-space;
+  -webkit-user-select: auto;
+}
+
+/* apply back the draggable feature - exist only in Chromium and Safari */
+:where([draggable='true']) {
+  -webkit-user-drag: element;
+}
+
+/* Revert Modal native behavior */
+:where(dialog:modal) {
+  all: revert;
+  box-sizing: border-box;
+}
+
+/* Remove details summary webkit styles */
+::-webkit-details-marker {
+  display: none;
+}
+
+/* Global variables */
+:root {
+  --base-font-size: 1rem;
+  --body-line-height: 1.5;
+  --heading-line-height: 1.25;
+  --ui-line-height: 1.25;
+
+  --max-width: 768px;
+
+  --heading-01: 2.027rem;
+  --heading-02: 1.802rem;
+  --heading-03: 1.602rem;
+  --heading-04: 1.424rem;
+  --heading-05: 1.266rem;
+  --heading-06: 1.125rem;
+  --body-01: 1rem;
+  --body-02: 0.889rem;
+  --caption: 0.79rem;
+  --footnote: 0.702rem;
+  --legal: 0.624rem;
+  --fineprint: 0.555rem;
+
+  --spacing-2xs: 0.125rem;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 0.75rem;
+  --spacing-lg: 1rem;
+  --spacing-xl: 1.5rem;
+  --spacing-2xl: 2rem;
+  --spacing-3xl: 2.5rem;
+  --spacing-4xl: 3rem;
+
+  --border-radius: 0.5rem;
+  --border-radius-large: 0.75rem;
+
+  --shadow-inset-100:
+    0rem -0.0625rem 0rem 0rem #b5b5b5 inset,
+    0rem 0rem 0rem 0.0625rem rgba(0, 0, 0, 0.075) inset,
+    0rem 0.03125rem 0rem 0.09375rem rgba(255, 255, 255, 0.25) inset;
+  --shadow-inset-200:
+    -0.0625rem 0rem 0.0625rem 0rem rgba(26, 26, 26, 0.122) inset,
+    0.0625rem 0rem 0.0625rem 0rem rgba(26, 26, 26, 0.122) inset,
+    0rem 0.125rem 0.0625rem 0rem rgba(26, 26, 26, 0.2) inset --c-black: #000;
+
+  --c-white: #fff;
+  --c-gray-100: #f8f9fa;
+  --c-gray-200: #e9ecef;
+  --c-gray-300: #dee2e6;
+  --c-gray-400: #ced4da;
+  --c-gray-500: #adb5bd;
+  --c-gray-600: #6c757d;
+  --c-gray-700: #495057;
+  --c-gray-800: #343a40;
+  --c-gray-900: #212529;
+  --c-primary: #0d6efd;
+  --c-primary-muted: #c2d3ed;
+  --c-primary-muted-text: #07387f;
+  --c-primary-muted-hover: #98bcf2;
+  --c-primary-hover: #0b5ed7;
+  --c-secondary: #6c757d;
+  --c-success: #198754;
+  --c-success-text: #0f5132;
+  --c-success-bg: #d3ede1;
+  --c-info: #0dcaf0;
+  --c-info-text: #087990;
+  --c-info-bg: #d6ecf0;
+  --c-warning: #ffc107;
+  --c-warning-text: #997404;
+  --c-warning-bg: #fff3cd;
+  --c-danger: #dc3545;
+  --c-danger-text: #842029;
+  --c-danger-bg: #f8d7da;
+  --c-background: #f8f9fa;
+  --c-text: #212529;
+  --c-logo: #faa52c;
+}
+
+/* Set core body defaults */
+body {
+  min-height: 100vh;
+  text-rendering: optimizeSpeed;
+  font-weight: 400;
+  user-select: none;
+  font-family:
+    'Helvetica Neue', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol';
+  background-color: var(--c-gray-200);
+  color: var(--c-text);
+}
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  min-width: 96px;
+  background-color: var(--c-gray-700);
+  border-radius: var(--border-radius);
+  border: 1px solid transparent;
+  color: var(--c-white);
+  font-size: var(--body-01);
+  box-shadow: var(--shadow-inset-200);
+}
+
+.btn.btn-icon {
+  width: 44px;
+  height: 44px;
+  min-width: 52px;
+  min-height: 44px;
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+.btn.btn-rounded {
+  border-radius: 90px;
+  padding: var(--spacing-xs) var(--spacing-lg);
+}
+
+.btn-icon.btn-rounded {
+  padding: 0;
+}
+
+.btn.btn-disabled,
+.btn:disabled {
+  background-color: var(--c-gray-400);
+  color: var(--c-gray-500);
+  cursor: default;
+}
+
+.btn.btn-primary {
+  background-color: var(--c-primary);
+  color: var(--c-white);
+}
+
+.btn.btn-primary:active,
+.btn.btn-primary:hover {
+  background-color: var(--c-primary-hover);
+}
+
+.btn.btn-secondary {
+  background-color: var(--c-primary-muted);
+  color: var(--c-primary-muted-text);
+}
+
+.btn.btn-secondary:active,
+.btn.btn-secondary:hover {
+  background-color: var(--c-primary-muted-hover);
+  color: var(--c-primary-muted-text);
+}
+
+.btn.btn-outline {
+  background-color: transparent;
+  border: 1px solid var(--c-gray-400);
+  color: var(--c-gray-700);
+}
+
+.btn.btn-outline:active,
+.btn.btn-outline:hover {
+  background-color: var(--c-gray-400);
+  border-color: var(--c-gray-400);
+  color: var(--c-gray-700);
+}
+
+.btn.btn-outline-inverse {
+  background-color: transparent;
+  border: 1px solid var(--c-gray-100);
+  color: var(--c-white);
+}
+
+.btn.btn-outline-inverse:active,
+.btn.btn-outline-inverse:hover {
+  background-color: transparent;
+  border-color: var(--c-gray-100);
+  color: var(--c-white);
+}
+
+.btn.btn-muted {
+  background-color: var(--c-gray-500);
+  color: var(--c-gray-800);
+}
+
+.btn.btn-muted:active,
+.btn.btn-muted:hover {
+  background-color: var(--c-gray-600);
+  color: var(--c-gray-300);
+}
+
+/* App.css - Global styles */
+.byte90-logo {
+  position: relative;
+  width: auto;
+  height: 32px;
+  fill: var(--c-gray-600);
+  flex-shrink: 0;
+  margin-bottom: var(--spacing-2xl);
+}
+
+main {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  max-width: var(--max-width);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto;
+  padding: var(--spacing-2xl) var(--spacing-lg);
+}
+
+.connected-components {
+  position: relative;
+  width: 100%;
+  padding-bottom: 8rem;
+}
+
+.progress-bar {
+  position: relative;
+  width: 100%;
+
+  progress[value] {
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    width: 100%;
+    height: 12px;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    margin-top: var(--spacing-sm);
+  }
+
+  progress[value]::-webkit-progress-bar {
+    background-color: var(--c-success-bg);
+    border-radius: var(--border-radius);
+  }
+
+  progress[value]::-webkit-progress-value {
+    background-color: var(--c-success);
+    border-radius: var(--border-radius);
+  }
+}
+
+.progress-bar__message {
+  font-size: var(--body-02);
+  line-height: var(--ui-line-height);
+  color: var(--c-gray-700);
+  margin-top: var(--spacing-xs);
+}
+
+/* Card Component Styles */
+.card-component {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  margin-bottom: var(--spacing-2xl);
+  background-color: var(--c-gray-300);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--c-gray-400);
+  box-shadow: var(--shadow-inset-200);
+}
+
+.card-component[hidden] {
+  display: none;
+  visibility: hidden;
+}
+
+.card-component__container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background-color: var(--c-white);
+  border-radius: inherit;
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-inset-100);
+}
+
+.card-component__container--with-footer {
+  border-bottom: 1px solid var(--c-gray-400);
+}
+
+.card-component__container--muted {
+  background-color: transparent;
+}
+
+.card-component__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-bottom: var(--spacing-sm);
+}
+
+.card-component__icon {
+  width: 24px;
+  height: 24px;
+  fill: var(--c-gray-700);
+  margin-right: var(--spacing-xs);
+}
+
+.card-component__title {
+  font-size: var(--heading-06);
+  font-weight: 600;
+  margin: 0;
+}
+
+.card-component__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.card-component__description {
+  font-size: var(--body-02);
+  line-height: var(--body-line-height);
+  margin-bottom: var(--spacing-md);
+  color: var(--c-gray-700);
+}
+
+.card-component__footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  font-size: var(--body-02);
+  line-height: var(--ui-line-height);
+  padding: var(--spacing-lg) var(--spacing-xl);
+}
+
+.card-component__footer-icon {
+  width: 24px;
+  height: 24px;
+  fill: var(--c-gray-600);
+  flex-shrink: 0;
+}
+
+.card-component__footer-description {
+  margin-left: var(--spacing-sm);
+  color: var(--c-gray-600);
+}
+
+.card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-actions {
+  margin-top: var(--spacing-xl);
+}
+
+/* Connection Notification Component Styles */
+.connection-notification {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  margin-bottom: var(--spacing-sm);
+  color: var(--c-gray-700);
+  font-size: var(--body-02);
+}
+
+/* Network List Component Styles */
+.networks {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--spacing-lg);
+}
+
+.networks__list {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--c-gray-400);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius);
+}
+
+.networks__list:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+.networks__list-empty-state {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--c-gray-600);
+  font-size: var(--body-01);
+}
+
+.wifi-find-icon {
+  width: 64px;
+  height: 64px;
+  fill: var(--c-gray-500);
+}
+
+.networks__item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: var(--spacing-md) var(--spacing-xs);
+  border: 1px solid transparent;
+  min-height: 32px;
+  font-size: var(--body-02);
+  justify-content: space-between;
+}
+
+.networks__item-ssid {
+  font-weight: 600;
+}
+
+.networks__item-details {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.networks__item ~ .networks__item {
+  border-top: 1px solid var(--c-gray-200);
+}
+
+.networks__item[aria-selected='true'] {
+  background-color: var(--c-gray-300);
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
+.wifi-security-icon,
+.wifi-signal-icon,
+.wifi-connected-icon {
+  width: 16px;
+  height: 16px;
+  fill: var(--c-gray-600);
+}
+
+/* Form Control Component Styles */
+.form-control {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.form-control ~ .form-control {
+  margin-top: var(--spacing-lg);
+}
+
+.form-control label {
+  font-size: var(--body-02);
+  font-weight: 500;
+  margin-bottom: var(--spacing-xs);
+}
+
+.form-control__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--spacing-sm);
+}
+
+.form-control__input-wrapper .btn {
+  width: auto;
+  min-width: 96px;
+  padding: var(--spacing-xs) var(--spacing-lg);
+}
+
+.form-control__input-wrapper input,
+.form-control__input-wrapper select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--c-gray-400);
+  min-height: 44px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius);
+  font-size: var(--body-01);
+}
+
+.form-control__input-wrapper input::placeholder,
+.form-control__input-wrapper select::placeholder {
+  color: var(--c-gray-500);
+}
+
+.form-control__input-wrapper input[type='file'] {
+  padding: var(--spacing-sm);
+}
+
+.form-control__input-wrapper input::file-selector-button {
+  background-color: transparent;
+  border: 1px solid var(--c-gray-400);
+  background-color: var(--c-gray-200);
+  border-radius: 0.25rem;
+  min-height: 24px;
+  font-size: var(--body-01);
+  padding: var(--spacing-xs) var(--spacing-md);
+  margin-right: var(--spacing-md);
+}
+
+.form-control__input-wrapper input.error,
+.form-control__input-wrapper select.error {
+  outline: 3px auto var(--c-danger);
+  outline-offset: 3px;
+}
+
+.select-icon {
+  position: absolute;
+  width: 32px;
+  height: 18px;
+  background-color: transparent;
+  border-radius: 2px;
+  right: 2px;
+  fill: var(--c-gray-600);
+  pointer-events: none;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  display: flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border-radius: 2px;
+  right: 6px;
+}
+
+.password-icon {
+  width: 24px;
+  height: 24px;
+  fill: var(--c-gray-700);
+}
+
+.wifi-connection-form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.wifi-connection-form__actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+
+  .btn {
+    width: auto;
+    padding: var(--spacing-xs) var(--spacing-md);
+  }
+
+  .btn ~ .btn {
+    margin-left: var(--spacing-sm);
+  }
+}
+
+/* Switch Toggle */
+.switch-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.switch-label {
+  font-size: var(--body-02);
+  font-weight: 500;
+}
+
+.switch {
+  position: relative;
+  cursor: pointer;
+  border: none;
+  background-color: var(--c-gray-300);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  width: 62px;
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.switch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  box-shadow: 0 0 0 2px currentColor;
+  transition: opacity 0.2s ease;
+}
+
+.switch:focus-visible::before {
+  opacity: 0.35;
+}
+
+.switch__toggle {
+  position: absolute;
+  left: 2px;
+  height: 30px;
+  width: 30px;
+  background-color: var(--c-white);
+  border-radius: 999px;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0px 2px 6px -2px rgba(32, 32, 32, 0.4);
+}
+
+/* Range Slider */
+.range-slider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.range-slider__range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--c-gray-300);
+  outline: none;
+}
+
+.range-slider__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--c-white);
+  border: 3px solid var(--c-primary);
+  box-shadow: 0px 2px 6px -2px rgba(32, 32, 32, 0.4);
+  cursor: pointer;
+  transition: background 0.15s ease-in-out;
+}
+
+.range-slider__range::-webkit-slider-thumb:hover {
+  background: var(--c-white);
+}
+
+.range-slider__range:active::-webkit-slider-thumb {
+  background: var(--c-white);
+}
+
+.range-slider__range::-moz-range-thumb {
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--c-primary);
+  border-radius: 50%;
+  background: var(--c-white);
+  box-shadow: 0px 2px 6px -2px rgba(32, 32, 32, 0.4);
+  cursor: pointer;
+  transition: background 0.15s ease-in-out;
+}
+
+.range-slider__range::-moz-range-thumb:hover {
+  background: var(--c-white);
+}
+
+.range-slider__range:active::-moz-range-thumb {
+  background: var(--c-white);
+}
+
+.range-slider__value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 28px;
+  font-size: var(--body-02);
+  font-weight: 600;
+  color: var(--c-white);
+  background: var(--c-primary);
+  border-radius: 6px;
+}
+
+/* WiFi Status Card Component Styles */
+.wifi-status-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  background-color: var(--c-primary);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-lg);
+}
+
+.wifi-status-card__content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+
+  .wifi-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: var(--spacing-md);
+    fill: var(--c-white);
+  }
+}
+
+.wifi-status-card__actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-left: auto;
+}
+
+.wifi-status-card__status {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.wifi-status-card__label {
+  font-size: var(--body-02);
+  color: var(--c-white);
+  padding-right: var(--spacing-sm);
+  border-right: 1px solid var(--c-white);
+}
+
+.wifi-status-card__network {
+  font-size: var(--body-02);
+  color: var(--c-white);
+  font-weight: 600;
+  padding-left: var(--spacing-sm);
+}
+
+.wifi-status-card[hidden] {
+  display: none;
+}
