@@ -30,31 +30,31 @@ void printTestResult(const char* testName, bool passed, const char* details) {
 
 void test_esp32_hardware(void) {
     Serial.println("Testing ESP32 hardware (SAFE)");
-    
+
     String chipModel = ESP.getChipModel();
     TEST_ASSERT_TRUE_MESSAGE(chipModel.length() > 0, "Chip model should not be empty");
-    
+
     uint32_t cpuFreq = ESP.getCpuFreqMHz();
     TEST_ASSERT_GREATER_THAN_MESSAGE(0, cpuFreq, "CPU frequency should be > 0");
-    
+
     uint32_t freeHeap = ESP.getFreeHeap();
     TEST_ASSERT_GREATER_THAN_MESSAGE(10000, freeHeap, "Should have reasonable free heap");
-    
-    printTestResult("ESP32 Hardware", true, 
+
+    printTestResult("ESP32 Hardware", true,
         (chipModel + ", " + String(cpuFreq) + "MHz, " + String(freeHeap) + " bytes heap").c_str());
 }
 
 void test_memory_before_tests(void) {
     uint32_t freeHeap = ESP.getFreeHeap();
     TEST_ASSERT_GREATER_THAN_MESSAGE(10000, freeHeap, "Should have sufficient memory before testing");
-    
+
     printTestResult("Memory Before Tests", true, (String(freeHeap) + " bytes free").c_str());
 }
 
 void test_memory_after_tests(void) {
     uint32_t freeHeap = ESP.getFreeHeap();
     TEST_ASSERT_GREATER_THAN_MESSAGE(5000, freeHeap, "Should still have reasonable memory after testing");
-    
+
     printTestResult("Memory After All Tests", true, (String(freeHeap) + " bytes free").c_str());
 }
 
@@ -108,11 +108,11 @@ void safeTestDelay(unsigned long ms) {
 }
 
 void briefStabilityDelay(void) {
-    delay(50);  // 50ms for general stability
+    delay(50);
 }
 
 void nvsOperationDelay(void) {
-    delay(200); // 200ms for NVS operations to complete
+    delay(200);
 }
 
 //==============================================================================
@@ -121,13 +121,13 @@ void nvsOperationDelay(void) {
 
 int run_basic_safety_tests(void) {
     int testCount = 0;
-    
-    #ifdef RUN_BASIC_SAFETY_TESTS
+
+#ifdef RUN_BASIC_SAFETY_TESTS
     RUN_TEST(test_esp32_hardware);
     testCount++;
     RUN_TEST(test_memory_before_tests);
     testCount++;
-    #endif
-    
+#endif
+
     return testCount;
 }

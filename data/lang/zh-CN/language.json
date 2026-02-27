@@ -1,0 +1,41 @@
+{
+  "language": {
+    "type": "zh-CN"
+  },
+  "strings": {
+    "WARNING": "警告",
+    "INFO": "信息",
+    "ERROR": "错误",
+    "VERSION": "版本 ",
+    "LOADING_PROTOCOL": "正在登录...",
+    "INITIALIZING": "正在初始化...",
+    "STANDBY": "待机",
+    "CONNECTING": "正在连接...",
+    "CONNECTION_SUCCESSFUL": "连接成功",
+    "CONNECTED_TO": "已连接到 ",
+    "CONNECT_TO": "连接到 ",
+    "LISTENING": "正在听...",
+    "SPEAKING": "正在说话...",
+    "SERVER_NOT_FOUND": "正在寻找可用服务",
+    "SERVER_NOT_CONNECTED": "无法连接到服务，请稍后再试",
+    "SERVER_TIMEOUT": "等待响应超时",
+    "SERVER_ERROR": "发送失败，请检查网络",
+    "CONNECT_TO_HOTSPOT": "热点: ",
+    "ACCESS_VIA_BROWSER": " 配置网址: ",
+    "WIFI_CONFIG_MODE": "Wi-Fi配置模式",
+    "ENTERING_WIFI_CONFIG_MODE": "正在进入Wi-Fi配置模式...",
+    "SCANNING_WIFI": "正在扫描Wi-Fi...",
+    "ACTIVATION": "激活",
+    "BATTERY_LOW": "电量低",
+    "BATTERY_CHARGING": "充电中",
+    "BATTERY_FULL": "电量充足",
+    "BATTERY_NEED_CHARGE": "电量低，请充电",
+    "VOLUME": "音量 ",
+    "MUTED": "已静音",
+    "MAX_VOLUME": "最大音量",
+    "RTC_MODE_OFF": "回声消除关闭",
+    "RTC_MODE_ON": "回声消除开启",
+    "PLEASE_WAIT": "请稍候...",
+    "HELLO_MY_FRIEND": "你好，我的朋友！"
+  }
+}

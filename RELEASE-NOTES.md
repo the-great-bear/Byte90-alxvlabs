@@ -1,57 +1,51 @@
-# 🎉 BYTE 90 v2.0.0 - Major Feature Release
+# 🎉 BYTE 90 v3.0.0 - Series 2 AI Edition Release
 
-We're thrilled to announce BYTE 90 v2.0.0, launching alongside Series 2! This milestone release brings powerful new features while maintaining full backward compatibility with Series 1 devices.
+We’re excited to introduce BYTE 90 v3.0.0, built specifically for the Series 2 AI Edition.
+
+This release delivers a richer on-device experience, full AI enablement, expanded MCP tools, and a brand-new BYTE 90 configuration captive portal.
+
+---
+
+## 🧩 Hardware Requirements
+
+- **Required:** Series 2 AI Edition hardware
+- Upgrade Path: Existing Series 2 owners must purchase the **Series 2 AI Edition Upgrade Kit** to install this firmware
+- Series 1 not supported
 
 ---
 
 ## ✨ What's New
 
-### 🕹️ Web Configuration Portal
+### 🕹️ Captive Portal Configuration UI
 
-The Web Installer has evolved into a comprehensive configuration and update portal, now the **recommended method** for managing your BYTE 90.
+The new on-device captive portal now includes a full configuration interface — and it’s the recommended way to manage your BYTE 90.
 
-- **Access**: [install.alxv.dev](https://install.alxv.dev/)
-- **Requirements**: Desktop or laptop browser with Web Serial API support
-- ⚠️ **Important**: Mobile browsers are not supported
+- Configure Wi-Fi and core system settings
+- Customize themes and device preferences
+- Access everything directly via the BYTE90-Config portal
 
-### 🎨 Enhanced Menu System
+### AI Enablement
 
-Navigate and customize your BYTE 90 with an intuitive new menu interface designed for effortless control.
+BYTE 90 now supports AI integration through:
+- Xiaozhi AI – Free for personal development projects (Commercial licenses available separately)
+- OpenAI – Requires a pay-per-use API key
 
-- Complete usage instructions available on our [support page](https://labs.alxvtoronto.com/pages/support)
+Install the firmware version that matches your preferred AI service.
 
-### 🌈 Themes & Visual Effects
+### 🧭 Device Intelligence Tools
 
-Personalize your BYTE 90 experience with customizable themes and effects.
+New MCP tools expand what the AI agent can do on-device:
 
-- Settings automatically persist across restarts
-- Multiple theme options to choose from
-- Real-time effect customization
+- **Themes & Effects**: quickly set and switch or reset themes and effects
+- **Timers**: set, repeat, cancel, and check active timers
+- **Status & controls**: real-time device status plus volume/brightness control
 
-### ⏰ Series 2 Exclusive Features
-
-Series 2 hardware unlocks enhanced capabilities:
-
-- **Audio & Haptic Feedback**: Immersive physical and auditory responses to interactions
-- **Clock Mode**: Transform your BYTE 90 into a desktop timepiece using the built-in RTC module
-
----
-
-## ⚠️ Known Issues
-
-**Windows 11 WiFi Connectivity**
-- Automatic IP assignment may fail when connecting to BYTE 90's access point
-- **Workaround**: Manually assign an IP address, or use macOS/iOS/Android (works seamlessly)
-
-**Web Serial API Updates**
-- Firmware updates may occasionally timeout
-- **Solution**: Simply retry the update process if this occurs
-
+MCP tools also enable custom API integrations — perfect for smart home control and advanced automation.
 ---
 
 ## 📦 Installation Guide
 
-> **⚠️ IMPORTANT**: Version 2.0.0 requires a partition change to accommodate the expanded firmware. This update requires Visual Studio Code and PlatformIO on your computer.
+> **⚠️ IMPORTANT**: Version 3.0.0 requires a partition change to accommodate the expanded firmware. This update requires Visual Studio Code and PlatformIO on your computer.
 
 ### Prerequisites: Install VS Code & PlatformIO
 
@@ -65,32 +59,25 @@ Series 2 hardware unlocks enhanced capabilities:
 3. **Download the source code**  
    Download the source folder from the link below and open it in VS Code
 
-### Series 1 Users: Firmware Update Steps
+### Series 2 Users: Firmware Update Steps
 
-1. **Configure for Series 1**  
-   Navigate to `include/common.h` and set:
-   ```cpp
-   #define SERIES_2 false
-   ```
-
-2. **Upload firmware**  
+1. **Upload firmware**  
    - Click the PlatformIO icon (alien icon) in the sidebar
    - Under **PROJECT TASKS**, locate and click **Upload**
    - Wait for the firmware upload to complete
 
 3. **Connect to Web Configuration Portal**  
-   - Your device will enter "Crash Mode" after upload - this is expected
    - Connect BYTE 90 to your computer via USB-C
    - Visit the [Web Configuration Portal](https://install.alxv.dev/)
    - Click **Connect** and select your device
 
 4. **Update filesystem**  
-   - Download and unzip the `filesystem.bin` file
+   - Download the `filesystem.bin` file
    - Select this file in the portal to update your BYTE 90's partition
    - Wait for the update to complete (see notes below)
 
 5. **Complete!**  
-   After the update finishes, your device will restart automatically. Enjoy BYTE 90 v2.0.0!
+   After the update finishes, your device will restart automatically. Enjoy BYTE 90 v3.0.0!
 
 > **📝 Update Notes**:
 > - The filesystem update can take several minutes due to Web Serial API transfer speeds
@@ -116,10 +103,10 @@ Report issues through our [issue tracker](../../issues)
 
 ## 🔗 Resources
 
-- **Full Changelog**: [View all changes →](https://github.com/alxv2016/Byte90-alxvlabs/commits/v2.0.0)
+- **Full Changelog**: [View all changes →](https://github.com/alxv2016/Byte90-alxvlabs/commits/v3.0.0)
 - **Web Configuration Portal**: [install.alxv.dev](https://install.alxv.dev/)
 - **Support**: [labs.alxvtoronto.com/pages/support](https://labs.alxvtoronto.com/pages/support)
 
-*Thank you for being part of the BYTE 90 community! We can't wait to see what you create with v2.0.0.*
+*Thank you for being part of the BYTE 90 community! We can't wait to see what you create with v3.0.0.*
 
 ---
