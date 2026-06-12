@@ -59,6 +59,8 @@ public:
      * @param input_sample_rate Sample rate of mic PCM we will stream (Hz)
      * @param vad_silence_duration_ms Silence before end-of-turn (server VAD)
      * @param vad_prefix_padding_ms Audio retained before speech start (server VAD)
+     * @param start_sensitivity Gemini start-of-speech sensitivity enum, or ""/nullptr to omit
+     * @param end_sensitivity Gemini end-of-speech sensitivity enum, or ""/nullptr to omit
      */
     void buildSetup(
         JsonDocument& doc,
@@ -67,7 +69,9 @@ public:
         const String& instructions,
         int input_sample_rate = 16000,
         int vad_silence_duration_ms = 500,
-        int vad_prefix_padding_ms = 600
+        int vad_prefix_padding_ms = 600,
+        const char* start_sensitivity = nullptr,
+        const char* end_sensitivity = nullptr
     );
 
     /**

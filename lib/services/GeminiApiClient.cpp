@@ -69,7 +69,9 @@ void GeminiApiClient::buildSetup(
     const String& instructions,
     int input_sample_rate,
     int vad_silence_duration_ms,
-    int vad_prefix_padding_ms
+    int vad_prefix_padding_ms,
+    const char* start_sensitivity,
+    const char* end_sensitivity
 ) {
     (void)input_sample_rate;  // documented via realtimeInput mime; not part of setup
     doc.clear();
@@ -103,6 +105,12 @@ void GeminiApiClient::buildSetup(
     JsonObject vad = realtime_cfg["automaticActivityDetection"].to<JsonObject>();
     vad["silenceDurationMs"] = vad_silence_duration_ms;
     vad["prefixPaddingMs"] = vad_prefix_padding_ms;
+    if (start_sensitivity && start_sensitivity[0] != '\0') {
+        vad["startOfSpeechSensitivity"] = start_sensitivity;
+    }
+    if (end_sensitivity && end_sensitivity[0] != '\0') {
+        vad["endOfSpeechSensitivity"] = end_sensitivity;
+    }
 
     // Ask the server to emit transcripts (handy for logging / future captions).
     setup["inputAudioTranscription"].to<JsonObject>();

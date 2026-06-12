@@ -76,6 +76,12 @@
 #define OPENAI_IDLE_GOODBYE_TEXT "Goodbye"
 #define OPENAI_OUTPUT_DRAIN_MS 500  // Consider playback done after this drain window
 #define OPENAI_IDLE_DISCONNECT_MS 20000  // Disconnect after this long without user speech
+
+// Shared realtime-session idle behaviour (applies to both providers via
+// ProtocolManager). After this long with no user speech while listening, the
+// assistant says goodbye and the session is torn down.
+#define REALTIME_IDLE_DISCONNECT_MS 20000   // 0 disables the idle timeout
+#define REALTIME_IDLE_GOODBYE_TEXT  "Goodbye"
 #define OPENAI_CAPTURE_MUTE_MS 250  // Ignore mic audio briefly after capture restarts to avoid echo
 #define OPENAI_INPUT_SILENCE_TIMEOUT_MS 2000  // Suspend TX after this long below silence threshold
 #define OPENAI_INPUT_SILENCE_PEAK_THRESHOLD 0.05f  // Normalized peak below this is silence
@@ -186,6 +192,19 @@ constexpr const char* OPENAI_REALTIME_INSTRUCTIONS = R"BYTE(
 
 // Opening line BYTE-90 says when a session connects (sent as a user turn).
 #define GEMINI_STARTUP_TEXT "Hello"
+
+// --- Conversation / VAD tuning (Gemini server-side automatic activity detection) ---
+// End-of-speech silence before the model takes its turn. Higher = fewer
+// mid-sentence cut-offs, at the cost of a little more turn latency.
+#define GEMINI_VAD_SILENCE_MS   700
+// Audio retained before detected speech start (avoids clipped word starts).
+#define GEMINI_VAD_PREFIX_MS    300
+// Start/end detection sensitivity. Valid values are the Gemini enums below
+// (set either to "" to omit and use the server default).
+//   START_SENSITIVITY_HIGH  -> reacts quickly when the user starts talking.
+//   END_SENSITIVITY_LOW     -> waits a touch longer before deciding they stopped.
+#define GEMINI_VAD_START_SENSITIVITY "START_SENSITIVITY_HIGH"
+#define GEMINI_VAD_END_SENSITIVITY   "END_SENSITIVITY_LOW"
 
 // Reuse the shared BYTE-90 persona so both providers behave identically.
 constexpr const char* GEMINI_LIVE_INSTRUCTIONS = OPENAI_REALTIME_INSTRUCTIONS;

@@ -436,41 +436,42 @@ void ProtocolManager::updateAudioTransmission() {
         return;
     }
 
-    // Idle timeout temporarily disabled for testing.
-    // if (_openai_client && _audio->isListening() && _openai_client->isConnected()) {
-    //     uint32_t last_speech_ms = _openai_client->lastUserSpeechMs();
-    //     if (last_speech_ms > 0 &&
-    //         OPENAI_IDLE_DISCONNECT_MS > 0 &&
-    //         millis() - last_speech_ms >= OPENAI_IDLE_DISCONNECT_MS) {
-    //         ESP_LOGI(TAG, "Idle timeout reached (%u ms), sending goodbye",
-    //                  OPENAI_IDLE_DISCONNECT_MS);
-    //         _idle_goodbye_in_progress = true;
-    //         _idle_disconnect_sound_started = false;
-    //         _idle_goodbye_sent_ms = millis();
-    //         if (_audio && _audio->getService() && _audio->getService()->isCaptureActive()) {
-    //             _audio->getService()->stopCapture();
-    //         }
-    //         if (_audio) {
-    //             _audio->resetListeningState();
-    //         }
-    //         if (_openai_client) {
-    //             _openai_client->clearInputAudioBuffer();
-    //             if (!_openai_client->sendTextResponse(OPENAI_IDLE_GOODBYE_TEXT)) {
-    //                 ESP_LOGW(TAG, "Failed to send idle goodbye, disconnecting");
-    //                 _idle_disconnect_sound_started = true;
-    //                 _pending_disconnect_sound = false;
-    //                 _idle_goodbye_sent_ms = 0;
-    //                 if (_audio) {
-    //                     if (_audio->getService() && _audio->getService()->isPcmPlaybackActive()) {
-    //                         _audio->getService()->stopPcmPlayback();
-    //                     }
-    //                     _audio->playSoundWithHaptic("/sounds/disconnect.mp3",
-    //                                                 HapticsManager::HAPTIC_EVENT_DISCONNECT);
-    //                 }
-    //             }
-    //         }
-    //         return;
-    //     }
-    // }
+    // Idle timeout: after REALTIME_IDLE_DISCONNECT_MS without user speech while
+    // listening, have the assistant say goodbye and then tear the session down.
+    if (_openai_client && _audio->isListening() && _openai_client->isConnected()) {
+        uint32_t last_speech_ms = _openai_client->lastUserSpeechMs();
+        if (last_speech_ms > 0 &&
+            REALTIME_IDLE_DISCONNECT_MS > 0 &&
+            millis() - last_speech_ms >= REALTIME_IDLE_DISCONNECT_MS) {
+            ESP_LOGI(TAG, "Idle timeout reached (%u ms), sending goodbye",
+                     REALTIME_IDLE_DISCONNECT_MS);
+            _idle_goodbye_in_progress = true;
+            _idle_disconnect_sound_started = false;
+            _idle_goodbye_sent_ms = millis();
+            if (_audio && _audio->getService() && _audio->getService()->isCaptureActive()) {
+                _audio->getService()->stopCapture();
+            }
+            if (_audio) {
+                _audio->resetListeningState();
+            }
+            if (_openai_client) {
+                _openai_client->clearInputAudioBuffer();
+                if (!_openai_client->sendTextResponse(REALTIME_IDLE_GOODBYE_TEXT)) {
+                    ESP_LOGW(TAG, "Failed to send idle goodbye, disconnecting");
+                    _idle_disconnect_sound_started = true;
+                    _pending_disconnect_sound = false;
+                    _idle_goodbye_sent_ms = 0;
+                    if (_audio) {
+                        if (_audio->getService() && _audio->getService()->isPcmPlaybackActive()) {
+                            _audio->getService()->stopPcmPlayback();
+                        }
+                        _audio->playSoundWithHaptic("/sounds/disconnect.mp3",
+                                                    HapticsManager::HAPTIC_EVENT_DISCONNECT);
+                    }
+                }
+            }
+            return;
+        }
+    }
     _audio->updateOpenAI();
 }

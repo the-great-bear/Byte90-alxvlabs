@@ -69,8 +69,8 @@ GeminiWebsocket::GeminiWebsocket()
     , _mcp_server(nullptr)
     , _ai_adapter(nullptr)
     , _vad_threshold(0.3f)
-    , _vad_prefix_padding_ms(600)
-    , _vad_silence_duration_ms(500)
+    , _vad_prefix_padding_ms(GEMINI_VAD_PREFIX_MS)
+    , _vad_silence_duration_ms(GEMINI_VAD_SILENCE_MS)
 {
     _api = new GeminiApiClient(&_ws);
 }
@@ -569,7 +569,9 @@ void GeminiWebsocket::sendSetup() {
         GEMINI_LIVE_INSTRUCTIONS,
         AUDIO_SAMPLE_RATE_STT,
         _vad_silence_duration_ms,
-        _vad_prefix_padding_ms
+        _vad_prefix_padding_ms,
+        GEMINI_VAD_START_SENSITIVITY,
+        GEMINI_VAD_END_SENSITIVITY
     );
 
     // Append MCP tools as Gemini function declarations.
