@@ -122,6 +122,9 @@ void CaptivePortal::setupRoutes() {
     _server.on("/api/openai-key/status", HTTP_GET, [this]() { handleOpenAiKeyStatus(); });
     _server.on("/api/openai-key", HTTP_POST, [this]() { handleOpenAiKeySave(); });
     _server.on("/api/openai-key/clear", HTTP_POST, [this]() { handleOpenAiKeyClear(); });
+    _server.on("/api/gemini-key/status", HTTP_GET, [this]() { handleGeminiKeyStatus(); });
+    _server.on("/api/gemini-key", HTTP_POST, [this]() { handleGeminiKeySave(); });
+    _server.on("/api/gemini-key/clear", HTTP_POST, [this]() { handleGeminiKeyClear(); });
     _server.on("/api/timezone/status", HTTP_GET, [this]() { handleTimezoneStatus(); });
     _server.on("/api/timezone/list", HTTP_GET, [this]() { handleTimezoneList(); });
     _server.on("/api/timezone", HTTP_POST, [this]() { handleTimezoneSave(); });
@@ -486,6 +489,116 @@ void CaptivePortal::handleOpenAiKeyClear() {
     }
 
     bool cleared = _storage->clearOpenAiApiKey();
+    JsonDocument doc;
+    doc["success"] = cleared;
+    doc["message"] = cleared
+        ? "API key has been cleared successfully"
+        : "Failed to clear API key";
+    doc["has_key"] = false;
+    doc["last4"] = "";
+    String response;
+    serializeJson(doc, response);
+    sendJsonResponse(cleared ? 200 : 500, response);
+}
+
+void CaptivePortal::handleGeminiKeyStatus() {
+    if (!_storage) {
+        JsonDocument doc;
+        doc["success"] = false;
+        doc["message"] = "Storage not ready";
+        doc["supported"] = true;
+        doc["has_key"] = false;
+        doc["last4"] = "";
+        String response;
+        serializeJson(doc, response);
+        sendJsonResponse(500, response);
+        return;
+    }
+
+    bool has_key = _storage->hasGeminiApiKey();
+    String last4 = has_key ? _storage->getGeminiApiKeyLast4() : "";
+
+    JsonDocument doc;
+    doc["success"] = true;
+    doc["message"] = has_key ? "API key stored" : "No API key stored";
+    doc["supported"] = true;
+    doc["has_key"] = has_key;
+    doc["last4"] = last4;
+    String response;
+    serializeJson(doc, response);
+    sendJsonResponse(200, response);
+}
+
+void CaptivePortal::handleGeminiKeySave() {
+    if (!_storage) {
+        JsonDocument doc;
+        doc["success"] = false;
+        doc["message"] = "Storage not ready";
+        String response;
+        serializeJson(doc, response);
+        sendJsonResponse(500, response);
+        return;
+    }
+
+    String api_key = _server.arg("api_key");
+    if (api_key.isEmpty()) {
+        String body = _server.arg("plain");
+        if (!body.isEmpty()) {
+            JsonDocument doc;
+            DeserializationError err = deserializeJson(doc, body);
+            if (!err && doc["api_key"].is<String>()) {
+                api_key = doc["api_key"].as<String>();
+            }
+        }
+    }
+
+    if (api_key.isEmpty()) {
+        JsonDocument doc;
+        doc["success"] = false;
+        doc["message"] = "API key required";
+        String response;
+        serializeJson(doc, response);
+        sendJsonResponse(400, response);
+        return;
+    }
+
+    bool saved = _storage->saveGeminiApiKey(api_key.c_str());
+    JsonDocument doc;
+    doc["success"] = saved;
+    doc["message"] = saved
+        ? "API key has been stored successfully"
+        : "Failed to store API key";
+    doc["has_key"] = saved;
+    doc["last4"] = saved ? _storage->getGeminiApiKeyLast4() : "";
+    String response;
+    serializeJson(doc, response);
+    sendJsonResponse(saved ? 200 : 500, response);
+}
+
+void CaptivePortal::handleGeminiKeyClear() {
+    if (!_storage) {
+        JsonDocument doc;
+        doc["success"] = false;
+        doc["message"] = "Storage not ready";
+        String response;
+        serializeJson(doc, response);
+        sendJsonResponse(500, response);
+        return;
+    }
+
+    if (!_storage->hasGeminiApiKey()) {
+        JsonDocument doc;
+        doc["success"] = false;
+        doc["message"] = "No existing key saved";
+        doc["has_key"] = false;
+        doc["last4"] = "";
+        String response;
+        serializeJson(doc, response);
+        sendJsonResponse(400, response);
+        return;
+    }
+
+    bool cleared = _storage->clearGeminiApiKey();
     JsonDocument doc;
     doc["success"] = cleared;
     doc["message"] = cleared

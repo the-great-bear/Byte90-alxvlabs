@@ -568,11 +568,22 @@ bool AudioService::popPacketFromSendQueue(uint8_t* data, int* len, uint32_t* tim
     return false;
 }
 
-// Forward declaration to avoid circular dependency
+// Forward declaration to avoid a circular dependency. The concrete realtime AI
+// client (OpenAIWebsocket or GeminiWebsocket) is selected at build time; only
+// popPcm() is needed here and both providers expose the same symbol/signature.
+#if defined(AI_PROVIDER_GEMINI)
+class GeminiWebsocket {
+public:
+    size_t popPcm(int16_t* out, size_t max_samples);
+};
+using RealtimePcmSource = GeminiWebsocket;
+#else
 class OpenAIWebsocket {
 public:
     size_t popPcm(int16_t* out, size_t max_samples);
 };
+using RealtimePcmSource = OpenAIWebsocket;
+#endif
 
 bool AudioService::configureOpenAIResampler(int input_rate, int output_rate) {
     if (_openai_resampler_ready) {
@@ -671,7 +682,7 @@ void AudioService::pcmPlaybackTaskImpl() {
         return;
     }
 
-    OpenAIWebsocket* client = static_cast<OpenAIWebsocket*>(_pcm_playback_source);
+    RealtimePcmSource* client = static_cast<RealtimePcmSource*>(_pcm_playback_source);
     const int chunk_samples = 240;  // 10ms at 24kHz
     int16_t buffer[chunk_samples];
 

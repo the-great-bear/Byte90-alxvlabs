@@ -76,11 +76,30 @@ monitor_speed = 115200
 build_flags = 
 	-DCORE_DEBUG_LEVEL=1
 	-DBOARD_NAME=\"BYTE-90\"
-	-DFIRMWARE_VERSION=\"3.0.0\"
+	-DFIRMWARE_VERSION=\"3.1.0\"
 board_build.partitions = partitions.csv
 board_build.filesystem = littlefs
 lib_ldf_mode = deep+
 ```
+
+### AI provider variants
+
+BYTE-90 (Series 2 AI Edition) ships one realtime voice provider per firmware
+image. Pick the build environment for the provider you want:
+
+```bash
+# OpenAI Realtime (default)
+pio run -e seeed_xiao_esp32s3
+
+# Google Gemini Live (native audio)
+pio run -e seeed_xiao_esp32s3_gemini
+```
+
+Both share the same hardware config and persona; the Gemini env simply adds
+`-DAI_PROVIDER_GEMINI`, which swaps `OpenAIWebsocket` for `GeminiWebsocket` via
+`lib/services/RealtimeAiProvider.h`. After flashing the Gemini build, enter a
+Google AI Studio key in the **Gemini Live API** card of the on-device config
+portal. See `docs/GEMINI_WEBSOCKET_API_FLOW.md`.
 
 ### Required Libraries
 ```ini

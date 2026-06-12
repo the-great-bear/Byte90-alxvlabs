@@ -9,7 +9,7 @@
 #include "AudioService.h"
 #include "AudioVisualizer.h"
 #include "DeviceConfig.h"
-#include "OpenAIWebsocket.h"
+#include "RealtimeAiProvider.h"
 #include "HapticsManager.h"
 #include "Mp3Player.h"
 #include "SystemState.h"
@@ -219,12 +219,19 @@ bool ApplicationAudio::initialize(LittleFSManager* filesystem) {
                             int idx = (start + sent + i) % app_audio->_openai_preroll_capacity;
                             app_audio->_openai_preroll_input[i] = app_audio->_openai_preroll[idx];
                         }
+#if defined(AI_PROVIDER_GEMINI)
+                        // Gemini Live: stream native 16 kHz preroll directly.
+                        int out_samples = chunk;
+                        const int16_t* out_pcm = app_audio->_openai_preroll_input;
+#else
                         int out_samples = app_audio->_audio_service->processOpenAICapture(
                             app_audio->_openai_preroll_input, chunk,
                             app_audio->_openai_resample_output);
+                        const int16_t* out_pcm = app_audio->_openai_resample_output;
+#endif
                         if (out_samples > 0) {
                             app_audio->_openai_client->enqueuePcm(
-                                app_audio->_openai_resample_output,
+                                out_pcm,
                                 static_cast<size_t>(out_samples));
                         }
                         sent += chunk;
@@ -254,13 +261,20 @@ bool ApplicationAudio::initialize(LittleFSManager* filesystem) {
 
         block_count = 0;  // Reset when successfully sending
 
-        // Use AudioService to resample
+#if defined(AI_PROVIDER_GEMINI)
+        // Gemini Live consumes the native 16 kHz mic PCM directly (no resample).
+        int out_samples = count;
+        const int16_t* out_pcm = samples;
+#else
+        // OpenAI Realtime expects 24 kHz; resample 16k -> 24k via AudioService.
         int out_samples = app_audio->_audio_service->processOpenAICapture(
             samples, count, app_audio->_openai_resample_output);
+        const int16_t* out_pcm = app_audio->_openai_resample_output;
+#endif
 
         if (out_samples > 0) {
             bool queued = app_audio->_openai_client->enqueuePcm(
-                app_audio->_openai_resample_output,
+                out_pcm,
                 static_cast<size_t>(out_samples));
 
             if (queued) {
@@ -491,7 +505,7 @@ void ApplicationAudio::handleIncomingAudio(AudioStreamPacket* packet) {
     }
 }
 
-void ApplicationAudio::setOpenAIClient(OpenAIWebsocket* client) {
+void ApplicationAudio::setOpenAIClient(RealtimeAiClient* client) {
     _openai_client = client;
 }
 

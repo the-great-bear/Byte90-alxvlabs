@@ -12,6 +12,7 @@
 // Project includes
 #include "DeviceConfig.h"
 #include "SystemState.h"
+#include "RealtimeAiProvider.h"  // selects RealtimeAiClient (OpenAI or Gemini)
 
 // Forward declarations
 /**
@@ -38,10 +39,6 @@ class HapticsManager;
  * @brief SystemStateManager.
  */
 class SystemStateManager;
-/**
- * @brief OpenAIWebsocket.
- */
-class OpenAIWebsocket;
 /**
  * @brief LittleFSManager.
  */
@@ -157,7 +154,7 @@ public:
      *
      * @param protocol Communication protocol for transmission
      */
-    void setOpenAIClient(OpenAIWebsocket* client);
+    void setOpenAIClient(RealtimeAiClient* client);
     void handleOpenAISpeechState(bool speaking);
     void handleOpenAIResponseStart();
     void handleOpenAIResponseDone();
@@ -227,7 +224,7 @@ private:
     void processPendingOpenAICaptureStart();
     void stopOpenAICapture(const char* reason);
 
-    OpenAIWebsocket* _openai_client;
+    RealtimeAiClient* _openai_client;
     int16_t* _openai_resample_output;  // Temp buffer for resampled output from AudioService
     int _openai_resample_output_size;
     int16_t* _openai_preroll_input;

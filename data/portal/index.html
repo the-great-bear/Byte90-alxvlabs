@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BYTE-90 WiFi Setup</title>
-    <script type="module" crossorigin src="/portal/index-BSe-wonQ.js"></script>
+    <script type="module" crossorigin src="/portal/index-DOGn7l9b.js"></script>
     <link rel="stylesheet" crossorigin href="/portal/index-A8th-F1o.css">
   </head>
   <body>
@@ -135,6 +135,55 @@
                 </button>
                 <button
                   id="openAiSaveBtn"
+                  class="btn btn-primary"
+                  type="button"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="geminiCard" class="card-component">
+          <div class="card-component__container">
+            <div class="card-component__header">
+              <span class="card-icon" id="geminiCardIcon"></span>
+              <h2 class="card-component__title">Gemini Live API</h2>
+            </div>
+            <div class="card-component__content">
+              <div
+                id="geminiNotification"
+                class="connection-notification"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              ></div>
+
+              <div class="form-control">
+                <label for="geminiApiKeyInput">API Key</label>
+                <div class="form-control__input-wrapper">
+                  <input
+                    id="geminiApiKeyInput"
+                    type="text"
+                    placeholder="Enter Gemini API key"
+                    autocomplete="off"
+                    inputmode="text"
+                  />
+                </div>
+              </div>
+
+              <div class="card-actions wifi-connection-form__actions">
+                <button
+                  id="geminiClearBtn"
+                  class="btn btn-secondary"
+                  type="button"
+                >
+                  Clear
+                </button>
+                <button
+                  id="geminiSaveBtn"
                   class="btn btn-primary"
                   type="button"
                 >

@@ -238,6 +238,44 @@ public:
      */
     String getOpenAiApiKey();
 
+    // Gemini API key
+
+    /**
+     * @brief Save the Gemini API key
+     *
+     * @param api_key API key string
+     * @return true on success, false on failure
+     */
+    bool saveGeminiApiKey(const char* api_key);
+
+    /**
+     * @brief Clear the Gemini API key
+     *
+     * @return true on success, false on failure
+     */
+    bool clearGeminiApiKey();
+
+    /**
+     * @brief Check if a Gemini API key is stored
+     *
+     * @return true if key exists, false otherwise
+     */
+    bool hasGeminiApiKey();
+
+    /**
+     * @brief Get the last 4 characters of the stored Gemini API key
+     *
+     * @return Last 4 characters or empty string if missing/too short
+     */
+    String getGeminiApiKeyLast4();
+
+    /**
+     * @brief Get the stored Gemini API key
+     *
+     * @return API key string or empty if missing
+     */
+    String getGeminiApiKey();
+
     // Convenience getters/setters
 
     /**
@@ -484,6 +522,7 @@ private:
     Preferences _device_prefs;
     Preferences _websocket_prefs;
     Preferences _openai_prefs;
+    Preferences _gemini_prefs;
 
     // State
     bool _initialized;

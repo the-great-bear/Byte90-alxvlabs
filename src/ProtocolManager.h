@@ -9,6 +9,8 @@
 #include <Arduino.h>
 #include <functional>
 
+#include "RealtimeAiProvider.h"  // selects RealtimeAiClient (OpenAI or Gemini)
+
 struct cJSON;
 struct AudioStreamPacket;
 
@@ -18,8 +20,6 @@ class McpToolManager;
 class NVSStorage;
 class SystemStateManager;
 class WebSocketClient;
-
-class OpenAIWebsocket;
 
 /**
  * ProtocolManager - Protocol lifecycle and message handling.
@@ -68,7 +68,9 @@ private:
     bool& _pending_listening_start;
     McpToolManager* _mcp_tool_manager;
 
-    OpenAIWebsocket* _openai_client;
+    // Active realtime AI client (OpenAIWebsocket or GeminiWebsocket, chosen at
+    // build time via RealtimeAiProvider.h). Name kept for diff stability.
+    RealtimeAiClient* _openai_client;
 
     bool _pending_disconnect_sound;
     bool _idle_goodbye_in_progress;

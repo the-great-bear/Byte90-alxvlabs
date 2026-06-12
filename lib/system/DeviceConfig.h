@@ -165,6 +165,32 @@ constexpr const char* OPENAI_REALTIME_INSTRUCTIONS = R"BYTE(
 #define OPENAI_REALTIME_VOICE  "verse"
 
 // ========================================================================
+// GEMINI LIVE CONFIG
+// ========================================================================
+// Google Gemini Live API (BidiGenerateContent over WebSocket). Used when the
+// firmware is built with -DAI_PROVIDER_GEMINI (see platformio.ini).
+//
+// NOTE (confirm against current docs before flashing): the two volatile values
+// are the model id and the API version segment of the path (v1beta vs v1alpha).
+// As of 2026-06 the native-audio Flash model is the one below; a newer
+// alternative is "gemini-3.1-flash-live-preview".
+#define GEMINI_LIVE_MODEL  "gemini-2.5-flash-native-audio-preview-12-2025"
+#define GEMINI_LIVE_HOST   "generativelanguage.googleapis.com"
+#define GEMINI_LIVE_PORT   443
+// API key is appended to this path (?key=<KEY>) at connect time.
+#define GEMINI_LIVE_PATH   "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="
+
+// Prebuilt Gemini voice. Options include: Puck, Charon, Kore, Fenrir, Aoede,
+// Leda, Orus, Zephyr. "Puck" suits BYTE-90's upbeat persona.
+#define GEMINI_LIVE_VOICE  "Puck"
+
+// Opening line BYTE-90 says when a session connects (sent as a user turn).
+#define GEMINI_STARTUP_TEXT "Hello"
+
+// Reuse the shared BYTE-90 persona so both providers behave identically.
+constexpr const char* GEMINI_LIVE_INSTRUCTIONS = OPENAI_REALTIME_INSTRUCTIONS;
+
+// ========================================================================
 // NTP Servers
 // ========================================================================
 

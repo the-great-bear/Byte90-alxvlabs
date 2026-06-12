@@ -95,6 +95,12 @@ const openAiNotification = document.getElementById('openAiNotification') as HTML
 const openAiApiKeyInput = document.getElementById('openAiApiKeyInput') as HTMLInputElement;
 const openAiClearBtn = document.getElementById('openAiClearBtn') as HTMLButtonElement;
 const openAiSaveBtn = document.getElementById('openAiSaveBtn') as HTMLButtonElement;
+const geminiCardIcon = document.getElementById('geminiCardIcon') as HTMLSpanElement;
+const geminiCard = document.getElementById('geminiCard') as HTMLDivElement;
+const geminiNotification = document.getElementById('geminiNotification') as HTMLDivElement;
+const geminiApiKeyInput = document.getElementById('geminiApiKeyInput') as HTMLInputElement;
+const geminiClearBtn = document.getElementById('geminiClearBtn') as HTMLButtonElement;
+const geminiSaveBtn = document.getElementById('geminiSaveBtn') as HTMLButtonElement;
 const timezoneLocationCardIcon = document.getElementById(
   'timezoneLocationCardIcon'
 ) as HTMLSpanElement;
@@ -157,6 +163,9 @@ let focusedIndex = -1;
 let openAiHasKey = false;
 let openAiLast4 = '';
 let isOpenAiBusy = false;
+let geminiHasKey = false;
+let geminiLast4 = '';
+let isGeminiBusy = false;
 let isTimezoneBusy = false;
 let isLocationBusy = false;
 let isClockBusy = false;
@@ -262,6 +271,28 @@ function setOpenAiNotification(message: string, type: StatusType = 'info') {
   } else {
     openAiNotification.setAttribute('role', 'status');
     openAiNotification.setAttribute('aria-live', 'polite');
+  }
+}
+
+function setGeminiNotification(message: string, type: StatusType = 'info') {
+  if (!message) {
+    geminiNotification.hidden = true;
+    geminiNotification.textContent = '';
+    return;
+  }
+
+  geminiNotification.hidden = false;
+  geminiNotification.textContent = message;
+
+  if (type === 'error' || type === 'danger') {
+    geminiNotification.setAttribute('role', 'alert');
+    geminiNotification.setAttribute('aria-live', 'assertive');
+  } else if (type === 'warning') {
+    geminiNotification.setAttribute('role', 'alert');
+    geminiNotification.setAttribute('aria-live', 'polite');
+  } else {
+    geminiNotification.setAttribute('role', 'status');
+    geminiNotification.setAttribute('aria-live', 'polite');
   }
 }
 
@@ -493,6 +524,14 @@ function updateButtons() {
   openAiSaveBtn.hidden = openAiHasKey;
   openAiClearBtn.disabled = isOpenAiBusy;
   openAiClearBtn.hidden = !openAiHasKey;
+
+  geminiApiKeyInput.readOnly = geminiHasKey || isGeminiBusy;
+  geminiApiKeyInput.disabled = isGeminiBusy;
+  geminiSaveBtn.disabled =
+    geminiHasKey || geminiApiKeyInput.value.trim().length === 0;
+  geminiSaveBtn.hidden = geminiHasKey;
+  geminiClearBtn.disabled = isGeminiBusy;
+  geminiClearBtn.hidden = !geminiHasKey;
 
   const timezoneBusy = isTimezoneBusy || isLocationBusy;
   timezoneSelect.disabled = timezoneBusy;
@@ -920,6 +959,111 @@ async function clearOpenAiKey() {
     );
   } finally {
     isOpenAiBusy = false;
+    updateButtons();
+  }
+}
+
+function updateGeminiUi() {
+  geminiCard.hidden = false;
+  if (geminiHasKey) {
+    geminiApiKeyInput.value = geminiLast4 ? `******${geminiLast4}` : '******';
+  } else {
+    geminiApiKeyInput.value = '';
+  }
+  updateButtons();
+}
+
+async function fetchGeminiStatus() {
+  if (isGeminiBusy) {
+    return;
+  }
+
+  isGeminiBusy = true;
+  updateButtons();
+
+  try {
+    const data = await fetchOpenAiJson('/api/gemini-key/status');
+    geminiHasKey = data.has_key === true;
+    geminiLast4 = typeof data.last4 === 'string' ? data.last4 : '';
+    updateGeminiUi();
+  } catch (error) {
+    console.error('Gemini status check failed:', error);
+    setGeminiNotification(
+      error instanceof Error ? error.message : 'Gemini key status failed.',
+      'error'
+    );
+  } finally {
+    isGeminiBusy = false;
+    updateButtons();
+  }
+}
+
+async function saveGeminiKey() {
+  if (isGeminiBusy || geminiHasKey) {
+    return;
+  }
+
+  const apiKey = geminiApiKeyInput.value.trim();
+  if (!apiKey) {
+    setGeminiNotification('API key is required.', 'warning');
+    return;
+  }
+
+  isGeminiBusy = true;
+  setGeminiNotification('Saving API key...', 'info');
+  updateButtons();
+
+  try {
+    const data = await fetchOpenAiJson('/api/gemini-key', {
+      method: 'POST',
+      body: JSON.stringify({ api_key: apiKey }),
+    });
+    geminiHasKey = data.has_key === true;
+    geminiLast4 = typeof data.last4 === 'string' ? data.last4 : '';
+    setGeminiNotification(
+      data.message || 'API key has been stored successfully please restart your device',
+      'success'
+    );
+    updateGeminiUi();
+  } catch (error) {
+    console.error('Gemini key save failed:', error);
+    setGeminiNotification(
+      error instanceof Error ? error.message : 'Failed to store API key.',
+      'error'
+    );
+  } finally {
+    isGeminiBusy = false;
+    updateButtons();
+  }
+}
+
+async function clearGeminiKey() {
+  if (isGeminiBusy) {
+    return;
+  }
+
+  isGeminiBusy = true;
+  setGeminiNotification('Clearing API key...', 'info');
+  updateButtons();
+
+  try {
+    const data = await fetchOpenAiJson('/api/gemini-key/clear', { method: 'POST' });
+    geminiHasKey = false;
+    geminiLast4 = '';
+    geminiApiKeyInput.value = '';
+    setGeminiNotification(
+      data.message || 'API key has been cleared successfully',
+      'success'
+    );
+    updateGeminiUi();
+  } catch (error) {
+    console.error('Gemini key clear failed:', error);
+    setGeminiNotification(
+      error instanceof Error ? error.message : 'Failed to clear API key.',
+      'error'
+    );
+  } finally {
+    isGeminiBusy = false;
     updateButtons();
   }
 }
@@ -1422,6 +1566,7 @@ function initialize() {
   setIcon(wifiStatusIcon, wifiIcon, 'wifi-icon');
   setIcon(wifiCardIcon, wifiIcon, 'card-component__icon');
   setIcon(openAiCardIcon, apiKeyIcon, 'card-component__icon');
+  setIcon(geminiCardIcon, apiKeyIcon, 'card-component__icon');
   setIcon(timezoneLocationCardIcon, clockIcon, 'card-component__icon');
   setIcon(customizeCardIcon, effectsIcon, 'card-component__icon');
   setIcon(audioSettingsCardIcon, volumeIcon, 'card-component__icon');
@@ -1457,6 +1602,13 @@ function initialize() {
     runWithButtonFocus(openAiClearBtn, clearOpenAiKey);
   });
   openAiApiKeyInput.addEventListener('input', updateButtons);
+  geminiSaveBtn.addEventListener('click', () => {
+    runWithButtonFocus(geminiSaveBtn, saveGeminiKey);
+  });
+  geminiClearBtn.addEventListener('click', () => {
+    runWithButtonFocus(geminiClearBtn, clearGeminiKey);
+  });
+  geminiApiKeyInput.addEventListener('input', updateButtons);
   timezoneLocationSaveBtn.addEventListener('click', () => {
     runWithButtonFocus(timezoneLocationSaveBtn, saveTimezoneLocation);
   });
@@ -1499,6 +1651,7 @@ async function loadInitialStatusAndScan() {
   await fetchEffectsStatus();
   await fetchAudioStatus();
   await fetchOpenAiStatus();
+  await fetchGeminiStatus();
   await checkWiFiStatus();
   await scanNetworks();
 }

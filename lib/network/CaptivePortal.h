@@ -88,6 +88,9 @@ private:
     void handleOpenAiKeyStatus();
     void handleOpenAiKeySave();
     void handleOpenAiKeyClear();
+    void handleGeminiKeyStatus();
+    void handleGeminiKeySave();
+    void handleGeminiKeyClear();
     void handleTimezoneStatus();
     void handleTimezoneSave();
     void handleTimezoneClear();

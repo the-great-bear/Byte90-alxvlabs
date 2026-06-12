@@ -13,13 +13,20 @@
 #include "McpToolManager.h"
 #include "Mp3Player.h"
 #include "AudioService.h"
-#include "OpenAIWebsocket.h"
+#include "RealtimeAiProvider.h"
 #include "WebsocketClient.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
 
 static const char* TAG = "ProtocolManager";
+
+// Provider-specific NVS getter for the active realtime AI client's API key.
+#if defined(AI_PROVIDER_GEMINI)
+#define REALTIME_GET_API_KEY(storage) ((storage)->getGeminiApiKey())
+#else
+#define REALTIME_GET_API_KEY(storage) ((storage)->getOpenAiApiKey())
+#endif
 
 ProtocolManager::ProtocolManager(
     NVSStorage* storage,
@@ -74,14 +81,14 @@ void ProtocolManager::initializeProtocol() {
     }
 
     ESP_LOGI(TAG, "9.1. OpenAI Realtime...");
-    _openai_client = new OpenAIWebsocket();
+    _openai_client = new RealtimeAiClient();
     if (!_openai_client->begin()) {
-        ESP_LOGE(TAG, "❌ Failed to initialize OpenAI realtime client");
+        ESP_LOGE(TAG, "❌ Failed to initialize realtime AI client");
         return;
     }
 
     if (_storage) {
-        String api_key = _storage->getOpenAiApiKey();
+        String api_key = REALTIME_GET_API_KEY(_storage);
         if (api_key.length() == 0) {
             ESP_LOGW(TAG, "OpenAI API key missing in NVS");
         }
@@ -202,13 +209,13 @@ void ProtocolManager::connectProtocol() {
         _state_manager->setState(SYSTEM_STATE_CONNECTING);
     }
     if (!_openai_client->hasApiKey() && _storage) {
-        String api_key = _storage->getOpenAiApiKey();
+        String api_key = REALTIME_GET_API_KEY(_storage);
         if (api_key.length() > 0) {
             _openai_client->setApiKey(api_key);
         }
     }
     if (!_openai_client->hasApiKey()) {
-        ESP_LOGW(TAG, "OpenAI API key missing, aborting connect");
+        ESP_LOGW(TAG, "Realtime AI API key missing, aborting connect");
         if (_state_manager) {
             _state_manager->setState(SYSTEM_STATE_IDLE);
         }

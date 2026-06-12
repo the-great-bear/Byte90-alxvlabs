@@ -19,6 +19,7 @@ static const char* TAG = "NVSStorage";
 #define NS_DEVICE    "device"
 #define NS_WEBSOCKET "websocket"
 #define NS_OPENAI    "openai"
+#define NS_GEMINI    "gemini"
 
 // Key names
 #define KEY_SSID        "ssid"
@@ -47,6 +48,7 @@ static const char* TAG = "NVSStorage";
 
 // OpenAI key names
 #define KEY_OPENAI_API_KEY "api_key"
+#define KEY_GEMINI_API_KEY "api_key"
 
 // Default values
 #define DEFAULT_VOLUME      70
@@ -112,9 +114,17 @@ bool NVSStorage::begin() {
     bool has_openai_key = _openai_prefs.isKey(KEY_OPENAI_API_KEY);
     _openai_prefs.end();
 
+    if (!_gemini_prefs.begin(NS_GEMINI, false)) {
+        ESP_LOGE(TAG, "❌ Failed to open Gemini namespace");
+        return false;
+    }
+    bool has_gemini_key = _gemini_prefs.isKey(KEY_GEMINI_API_KEY);
+    _gemini_prefs.end();
+
     _initialized = true;
     ESP_LOGI(TAG, "NVS Storage initialized");
     ESP_LOGI(TAG, "OpenAI API key present: %s", has_openai_key ? "yes" : "no");
+    ESP_LOGI(TAG, "Gemini API key present: %s", has_gemini_key ? "yes" : "no");
 
     return true;
 }
@@ -306,6 +316,96 @@ String NVSStorage::getOpenAiApiKey() {
 
     String api_key = _openai_prefs.getString(KEY_OPENAI_API_KEY, "");
     closeNamespace(_openai_prefs);
+
+    return api_key;
+}
+
+// Gemini API key
+bool NVSStorage::saveGeminiApiKey(const char* api_key) {
+    if (!_initialized || !api_key) {
+        return false;
+    }
+
+    if (!openNamespace(_gemini_prefs, NS_GEMINI, false)) {
+        return false;
+    }
+
+    bool success = (_gemini_prefs.putString(KEY_GEMINI_API_KEY, api_key) > 0);
+    closeNamespace(_gemini_prefs);
+
+    if (success) {
+        ESP_LOGI(TAG, "Gemini API key stored");
+    } else {
+        ESP_LOGE(TAG, "❌ Failed to store Gemini API key");
+    }
+
+    return success;
+}
+
+bool NVSStorage::clearGeminiApiKey() {
+    if (!_initialized) {
+        return false;
+    }
+
+    if (!openNamespace(_gemini_prefs, NS_GEMINI, false)) {
+        return false;
+    }
+
+    bool success = _gemini_prefs.remove(KEY_GEMINI_API_KEY);
+    closeNamespace(_gemini_prefs);
+
+    if (success) {
+        ESP_LOGI(TAG, "Gemini API key cleared");
+    }
+
+    return success;
+}
+
+bool NVSStorage::hasGeminiApiKey() {
+    if (!_initialized) {
+        return false;
+    }
+
+    if (!openNamespace(_gemini_prefs, NS_GEMINI, true)) {
+        return false;
+    }
+
+    bool has_key = _gemini_prefs.isKey(KEY_GEMINI_API_KEY);
+    closeNamespace(_gemini_prefs);
+
+    return has_key;
+}
+
+String NVSStorage::getGeminiApiKeyLast4() {
+    if (!_initialized) {
+        return "";
+    }
+
+    if (!openNamespace(_gemini_prefs, NS_GEMINI, true)) {
+        return "";
+    }
+
+    String api_key = _gemini_prefs.getString(KEY_GEMINI_API_KEY, "");
+    closeNamespace(_gemini_prefs);
+
+    if (api_key.length() < 4) {
+        return "";
+    }
+
+    return api_key.substring(api_key.length() - 4);
+}
+
+String NVSStorage::getGeminiApiKey() {
+    if (!_initialized) {
+        return "";
+    }
+
+    if (!openNamespace(_gemini_prefs, NS_GEMINI, true)) {
+        return "";
+    }
+
+    String api_key = _gemini_prefs.getString(KEY_GEMINI_API_KEY, "");
+    closeNamespace(_gemini_prefs);
 
     return api_key;
 }
