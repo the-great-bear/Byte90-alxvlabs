@@ -1650,7 +1650,6 @@ async function loadInitialStatusAndScan() {
   await fetchClockStatus();
   await fetchEffectsStatus();
   await fetchAudioStatus();
-  await fetchOpenAiStatus();
   await fetchGeminiStatus();
   await checkWiFiStatus();
   await scanNetworks();
