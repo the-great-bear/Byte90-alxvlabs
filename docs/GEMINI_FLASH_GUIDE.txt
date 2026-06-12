@@ -1,0 +1,82 @@
+================================================================
+BYTE-90  Gemini Live build (v3.1.0) — Backup & Flash guide (Windows)
+================================================================
+Device confirmed: ESP32-S3, 8 MB flash, MAC 10:20:ba:03:bd:b8
+Partition layout was read directly from YOUR device and verified.
+
+----------------------------------------------------------------
+FILES YOU NEED (download these from the chat onto the Windows PC)
+----------------------------------------------------------------
+  byte90-gemini.bin               -> the firmware (app)
+  byte90-gemini-filesystem.bin    -> filesystem: your animations + sounds +
+                                     phrases + archived original portal +
+                                     the new Gemini config portal
+  byte90_assets_backup.bin        -> (safety) your ORIGINAL filesystem, untouched
+
+You will CREATE on Windows:
+  byte90_full_8MB_backup.bin      -> full firmware backup (the part we couldn't
+                                     get over ChromeOS USB)
+
+----------------------------------------------------------------
+1) GET esptool ON WINDOWS
+----------------------------------------------------------------
+Easiest (no Python): download the standalone from
+  https://github.com/espressif/esptool/releases
+  -> grab "esptool-vX.X.X-win64.zip", unzip, use esptool.exe
+OR if you have Python:  pip install esptool
+
+Driver: the ESP32-S3 native USB-Serial/JTAG shows up as a normal COM port on
+Win10/11 (no driver needed). Find it in Device Manager > Ports (COM & LPT).
+Call it COMx below.
+
+----------------------------------------------------------------
+2) FULL BACKUP (do this first)  — non-destructive
+----------------------------------------------------------------
+  esptool --chip esp32s3 --port COMx read_flash 0x0 0x800000 byte90_full_8MB_backup.bin
+
+On native Windows USB this should complete in one pass (~1-2 min).
+Keep this file safe — it restores your device EXACTLY as it is now.
+(If you like, send it to me and I'll verify it's a clean image.)
+
+----------------------------------------------------------------
+3) FLASH — two options. The web installer is recommended.
+----------------------------------------------------------------
+VERIFIED OFFSETS (from your device):  app=0x10000   filesystem=0x500000
+Do NOT touch: bootloader(0x0), partition table(0x8000), nvs(0x9000=Wi-Fi).
+
+--- Option A (RECOMMENDED): official web installer ---
+Why: it uses the firmware's own chunked OTA (retries on hiccups) and flips the
+boot slot correctly. Runs in Chrome/Edge on Windows.
+  - Put device in Update Mode, connect USB.
+  - Firmware update   -> select byte90-gemini.bin
+  - (reboots)         -> Filesystem update -> select byte90-gemini-filesystem.bin
+
+--- Option B (advanced): esptool ---
+Erasing otadata makes the bootloader boot the freshly written app at 0x10000.
+  esptool --chip esp32s3 --port COMx erase_region 0xd000 0x2000
+  esptool --chip esp32s3 --port COMx write_flash 0x10000 byte90-gemini.bin 0x500000 byte90-gemini-filesystem.bin
+(Wi-Fi creds in nvs are preserved; bootloader/partition table untouched.)
+
+----------------------------------------------------------------
+4) AFTER FLASHING
+----------------------------------------------------------------
+  - Reconnect to the device's Wi-Fi config portal.
+  - Open the "Gemini Live API" card, paste your Google AI Studio key, save,
+    restart.
+  - Press the button to start a conversation.
+
+----------------------------------------------------------------
+5) IF GEMINI CONNECTS BUT DOESN'T TALK (first-connect debugging)
+----------------------------------------------------------------
+The one thing not tested on hardware is the live Gemini protocol. If voice
+doesn't work, capture the serial log and send it to me:
+  - Open a serial monitor at 115200 baud on COMx (PuTTY, Arduino IDE Serial
+    Monitor, or: pio device monitor -p COMx -b 115200)
+  - Press the button to trigger a Gemini connect, copy the log lines, paste here.
+Most likely fix is one of two constants in DeviceConfig.h (the model id or the
+v1beta path) — a quick edit + reflash, not a redesign.
+
+Questions to confirm against current Google docs before assuming a bug:
+  model:  gemini-2.5-flash-native-audio-preview-12-2025
+  path:   .../v1beta/...BidiGenerateContent
+================================================================
