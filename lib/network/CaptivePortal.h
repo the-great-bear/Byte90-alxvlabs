@@ -105,6 +105,7 @@ private:
     void handleAudioReset();
     void handleEffectsStatus();
     void handleEffectsApply();
+    void handleRestart();
     void sendJsonResponse(int code, const String& body);
     String getContentType(const String& path) const;
     String authModeToString(wifi_auth_mode_t mode) const;

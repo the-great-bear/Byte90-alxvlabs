@@ -139,6 +139,7 @@ void CaptivePortal::setupRoutes() {
     _server.on("/api/audio/reset", HTTP_POST, [this]() { handleAudioReset(); });
     _server.on("/api/effects/status", HTTP_GET, [this]() { handleEffectsStatus(); });
     _server.on("/api/effects", HTTP_POST, [this]() { handleEffectsApply(); });
+    _server.on("/api/restart", HTTP_POST, [this]() { handleRestart(); });
     _server.on("/portal", HTTP_ANY, [this]() { handleFileRequest(); });
     _server.on("/portal/", HTTP_ANY, [this]() { handleFileRequest(); });
     _server.on("/hotspot-detect.html", HTTP_ANY, [this]() { handleFileRequest(); });
@@ -1218,6 +1219,18 @@ void CaptivePortal::handleEffectsApply() {
     }
 
     handleEffectsStatus();
+}
+
+void CaptivePortal::handleRestart() {
+    JsonDocument doc;
+    doc["success"] = true;
+    doc["message"] = "Device restarting...";
+    String response;
+    serializeJson(doc, response);
+    sendJsonResponse(200, response);
+    _server.client().flush();
+    delay(200);
+    ESP.restart();
 }
 
 void CaptivePortal::sendJsonResponse(int code, const String& body) {

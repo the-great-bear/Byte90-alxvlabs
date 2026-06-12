@@ -101,6 +101,7 @@ const geminiNotification = document.getElementById('geminiNotification') as HTML
 const geminiApiKeyInput = document.getElementById('geminiApiKeyInput') as HTMLInputElement;
 const geminiClearBtn = document.getElementById('geminiClearBtn') as HTMLButtonElement;
 const geminiSaveBtn = document.getElementById('geminiSaveBtn') as HTMLButtonElement;
+const geminiRestartBtn = document.getElementById('geminiRestartBtn') as HTMLButtonElement;
 const timezoneLocationCardIcon = document.getElementById(
   'timezoneLocationCardIcon'
 ) as HTMLSpanElement;
@@ -532,6 +533,8 @@ function updateButtons() {
   geminiSaveBtn.hidden = geminiHasKey;
   geminiClearBtn.disabled = isGeminiBusy;
   geminiClearBtn.hidden = !geminiHasKey;
+  geminiRestartBtn.hidden = !geminiHasKey;
+  geminiRestartBtn.disabled = isGeminiBusy;
 
   const timezoneBusy = isTimezoneBusy || isLocationBusy;
   timezoneSelect.disabled = timezoneBusy;
@@ -971,6 +974,16 @@ function updateGeminiUi() {
     geminiApiKeyInput.value = '';
   }
   updateButtons();
+}
+
+async function restartDevice() {
+  try {
+    await fetch('/api/restart', { method: 'POST', cache: 'no-store' });
+  } catch {
+    // device restarted — connection drop is expected
+  }
+  setGeminiNotification('Restarting… reconnect to the device in a moment.', 'info');
+  geminiRestartBtn.disabled = true;
 }
 
 async function fetchGeminiStatus() {
@@ -1607,6 +1620,9 @@ function initialize() {
   });
   geminiClearBtn.addEventListener('click', () => {
     runWithButtonFocus(geminiClearBtn, clearGeminiKey);
+  });
+  geminiRestartBtn.addEventListener('click', () => {
+    runWithButtonFocus(geminiRestartBtn, restartDevice);
   });
   geminiApiKeyInput.addEventListener('input', updateButtons);
   timezoneLocationSaveBtn.addEventListener('click', () => {
