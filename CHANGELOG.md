@@ -39,6 +39,17 @@ build the Gemini image with `pio run -e seeed_xiao_esp32s3_gemini`.
   16 kHz→24 kHz capture resample used by the OpenAI path is bypassed for the
   Gemini build (`ApplicationAudio`). Output remains 24 kHz PCM for both providers.
 
+### Conversation tuning
+
+- **Idle-disconnect re-enabled** in `ProtocolManager` (previously commented out
+  "for testing"): after `REALTIME_IDLE_DISCONNECT_MS` (20 s) without user
+  speech while listening, the assistant says goodbye and the session is torn
+  down. Provider-neutral — applies to both OpenAI and Gemini builds.
+- **Gemini VAD/voice tuning** surfaced as `DeviceConfig.h` constants:
+  `GEMINI_VAD_SILENCE_MS` (700), `GEMINI_VAD_PREFIX_MS` (300) and start/end
+  speech sensitivity (`START_SENSITIVITY_HIGH` / `END_SENSITIVITY_LOW`) to
+  reduce mid-sentence cut-offs. Voice = `Puck`.
+
 ### Notes / to confirm before flashing
 
 - Two values may drift with Google's API: the native-audio model id
