@@ -3,6 +3,7 @@
 #include "DeviceConfig.h"
 
 #include <Preferences.h>
+#include <WiFi.h>
 #include <esp_log.h>
 #include <string.h>
 #include <sys/time.h>
@@ -242,7 +243,39 @@ bool ClockSync::syncNow(const char* ntp_server, const char* timezone, uint32_t t
         }
     }
 
-    if (now >= min_valid_time && (before < min_valid_time || now != before)) {
+    bool synced = now >= min_valid_time && (before < min_valid_time || now != before);
+
+    if (!synced) {
+        // Some routers block outbound UDP 123 to external IPs (while running their
+        // own NTP service) — a side-effect of the DNS override to 8.8.8.8 that was
+        // added to work around captive DNS interception. Try the DHCP gateway as a
+        // fallback; it answers on the local network and responds in < 100 ms.
+        String gateway = WiFi.gatewayIP().toString();
+        if (!gateway.isEmpty() && gateway != "0.0.0.0") {
+            ESP_LOGI(log_tag, "NTP fallback: trying gateway %s", gateway.c_str());
+            if (tz_ptr && tz_ptr[0] != '\0') {
+                configTzTime(tz_ptr, gateway.c_str());
+            } else {
+                configTime(0, 0, gateway.c_str());
+            }
+
+            uint32_t fb_start = millis();
+            time_t fb_before = time(nullptr);
+            now = fb_before;
+            while ((millis() - fb_start) < 2000) {
+                delay(100);
+                now = time(nullptr);
+                if (now >= min_valid_time) {
+                    if (fb_before < min_valid_time || now != fb_before) {
+                        break;
+                    }
+                }
+            }
+            synced = now >= min_valid_time && (fb_before < min_valid_time || now != fb_before);
+        }
+    }
+
+    if (synced) {
         struct tm local_tm;
         struct tm utc_tm;
         localtime_r(&now, &local_tm);
@@ -264,7 +297,7 @@ bool ClockSync::syncNow(const char* ntp_server, const char* timezone, uint32_t t
                  resolveNtpServer(timezone, ntp_server));
     }
 
-    return now >= min_valid_time && (before < min_valid_time || now != before);
+    return synced;
 }
 
 bool ClockSync::isTimeValid() {
