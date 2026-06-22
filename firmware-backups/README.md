@@ -6,7 +6,7 @@ Full flash dumps from physical Byte90 devices, readable with `esptool`.
 
 **`byte90_esp32s3_8mb_2026-06-12.bin`** — this is the canonical Real Baseline.
 
-- Gemini AI build (not OpenAI)
+- Full backup of the original firmware from the maker
 - All new firmware must be built on top of this
 - When in doubt, restore from this file
 
@@ -14,7 +14,7 @@ Full flash dumps from physical Byte90 devices, readable with `esptool`.
 
 | File | Date | Notes |
 |------|------|-------|
-| `byte90_esp32s3_8mb_2026-06-12.bin` | 2026-06-12 | **REAL BASELINE** — Gemini AI build |
+| `byte90_esp32s3_8mb_2026-06-12.bin` | 2026-06-12 | **REAL BASELINE** — original firmware from the maker |
 | `byte90_esp32s3_8mb_2026-06-22.bin` | 2026-06-22 | Backup taken after restore to Real Baseline |
 
 ## How to Restore to Real Baseline
