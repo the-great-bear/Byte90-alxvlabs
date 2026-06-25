@@ -6,6 +6,7 @@
 
 #include "SerialClient.h"
 #include "NvsStorage.h"
+#include "TimerManager.h"
 #include <ArduinoJson.h>
 #include <esp_log.h>
 #include <esp_ota_ops.h>
@@ -658,13 +659,32 @@ void SerialClient::handleGetStatus() {
     doc["total"] = _update_progress.totalSize;
     doc["wifi_connected"] = _wifiClient->isConnected();
     doc["free_heap"] = ESP.getFreeHeap();
-    
+
     if (_wifiClient->isConnected()) {
         doc["ssid"] = _wifiClient->getSSID();
         doc["rssi"] = _wifiClient->getRSSI();
         doc["ip"] = _wifiClient->getIP();
     }
-    
+
+    // Active timers (F1). Reported here so the GET_STATUS poll can verify timer
+    // state deterministically over serial without depending on log levels.
+    JsonArray timers = doc["timers"].to<JsonArray>();
+    if (_timer_manager) {
+        uint64_t now_ms = millis();
+        for (const auto& e : _timer_manager->listActive()) {
+            uint32_t remaining = (e.end_ms > now_ms)
+                ? static_cast<uint32_t>((e.end_ms - now_ms) / 1000ULL)
+                : 0;
+            JsonObject obj = timers.add<JsonObject>();
+            obj["id"]                = e.id;
+            obj["label"]             = e.label;
+            obj["duration_seconds"]  = e.duration_seconds;
+            obj["remaining_seconds"] = remaining;
+            obj["ends_at_epoch_ms"]  = e.end_epoch_ms;
+        }
+    }
+    doc["timer_count"] = timers.size();
+
     String response;
     serializeJson(doc, response);
     sendResponse(response);

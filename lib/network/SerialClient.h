@@ -19,6 +19,11 @@
  */
 class NVSStorage;
 
+/**
+ * @brief TimerManager.
+ */
+class TimerManager;
+
 // Constants
 
 /**
@@ -102,6 +107,15 @@ public:
      * @param enabled true to enable verbose output, false to disable
      */
     void setVerbose(bool enabled) { _verbose = enabled; }
+
+    /**
+     * @brief Provide the timer manager so GET_STATUS can report active timers
+     *
+     * Set after construction since the timer manager is created later in boot.
+     *
+     * @param timer_manager Pointer to the active TimerManager (may be nullptr)
+     */
+    void setTimerManager(TimerManager* timer_manager) { _timer_manager = timer_manager; }
 
 
 private:
@@ -297,6 +311,7 @@ private:
     // Dependencies
     WifiManager* _wifiClient;
     NVSStorage* _storage;
+    TimerManager* _timer_manager = nullptr;
 
     // State
     String _commandBuffer;

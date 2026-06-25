@@ -9,29 +9,30 @@ verify the F1 acceptance criteria from SuggestedFeatures.md:
   3. A timer survives a reboot (NVS rehydration).
   4. The 8-timer cap is enforced.
 
-IMPORTANT — what serial can and cannot do here
------------------------------------------------
+How this harness verifies (serial vs MCP)
+-----------------------------------------
 The timer tools are *MCP tools*: they are invoked by the LLM over the cloud
-protocol, NOT by any serial command. The serial port exposes only the
-firmware-update / WiFi / status / restart surface (see SerialClient). So this
-harness does two things:
+protocol, NOT by any serial command. You still trigger each action by SPEAKING
+to the device. Verification, however, is deterministic: the F1 firmware change
+reports active timers in the GET_STATUS serial response (SerialClient::
+handleGetStatus -> doc["timers"] / doc["timer_count"]). So this harness:
 
-  * For the voice-driven steps it PROMPTS you to speak a phrase to the device,
-    then watches the serial log for TimerManager's confirmation lines
-    (e.g. "Timer 1 started (180 s, label='pasta')") as machine-checkable
-    evidence. The OLED status bar is your visual source of truth; the captured
-    log line corroborates it.
+  * Prompts you to speak a phrase ("set a 3 minute pasta timer"), then POLLS
+    GET_STATUS until the expected timer state appears — checking id, label,
+    duration, remaining, and count directly from device state. No dependence on
+    log levels or OLED reading.
 
-  * For the reboot-persistence step it fully automates the part it can: it
-    sends RESTART over serial and asserts that "Rehydrated timers from NVS"
-    appears in the boot log within a timeout.
+  * For reboot persistence it sends RESTART over serial, then polls GET_STATUS
+    until the timer reappears and confirms its remaining time counted down
+    (rather than resetting), corroborated by the "Rehydrated timers from NVS"
+    boot log when available.
 
-Log-line matching depends on TimerManager's ESP_LOGI output reaching the serial
-console (governed by CORE_DEBUG_LEVEL in platformio.ini). If you see
-"no log evidence captured" but the OLED shows the expected behavior, treat the
-visual confirmation as authoritative and the log assertion as informational.
-A fully deterministic serial check would require exposing timer state through
-GET_STATUS — see the note at the bottom of this file.
+  * Timer EXPIRY is an edge event (a timer leaving the active set), so that one
+    check still reads the serial log line "Timer N expired" in addition to
+    confirming the timer disappeared from GET_STATUS.
+
+Requires firmware with the F1 GET_STATUS change flashed; the script does a
+capability check on startup and warns if the field is missing.
 
 Usage:
     python3 tools/timer_smoke_test.py                 # interactive, all steps
@@ -44,13 +45,14 @@ Requires: pyserial  (pip install pyserial)
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Optional, Pattern
+from typing import Callable, Deque, List, Optional, Pattern
 
 try:
     import serial  # type: ignore
@@ -168,6 +170,35 @@ class SerialMonitor:
             time.sleep(0.05)
         return ""
 
+    def query_status(self) -> Optional[dict]:
+        """Send GET_STATUS and return the parsed JSON payload (or None on failure)."""
+        reply = self.send_command("GET_STATUS")
+        if not reply.startswith("OK:"):
+            return None
+        try:
+            return json.loads(reply[len("OK:"):])
+        except json.JSONDecodeError:
+            return None
+
+    def query_timers(self) -> List[dict]:
+        """Return the active-timer list from GET_STATUS (empty list if none/unavailable)."""
+        status = self.query_status()
+        if not status:
+            return []
+        return status.get("timers", []) or []
+
+    def poll_timers(
+        self, predicate: Callable[[List[dict]], bool], timeout: float, interval: float = 0.5
+    ) -> Optional[List[dict]]:
+        """Poll GET_STATUS until predicate(timers) is True or timeout. Returns the timers list."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            timers = self.query_timers()
+            if predicate(timers):
+                return timers
+            time.sleep(interval)
+        return None
+
     def close(self) -> None:
         self._stop.set()
         self._thread.join(timeout=1.0)
@@ -201,89 +232,154 @@ class Harness:
         tag = green("PASS") if passed else (red("FAIL") if passed is False else yellow("SKIP"))
         print(f"  [{tag}] {name}" + (f" — {detail}" if detail else ""))
 
+    # ----- Helpers ----------------------------------------------------------
+
+    @staticmethod
+    def _find_label(timers: List[dict], label: str) -> Optional[dict]:
+        for t in timers:
+            if t.get("label") == label:
+                return t
+        return None
+
     # ----- Individual test steps -------------------------------------------
+    #
+    # State checks poll GET_STATUS (deterministic, firmware-reported). Event
+    # checks (expiry) still use the serial log, since an expiry is an edge that
+    # GET_STATUS only shows as a disappearance.
 
     def step_set_and_list(self) -> None:
-        print(bold("\n=== Step 1: set + list (single labeled timer) ==="))
-        since = self.mon.mark()
+        print(bold("\n=== Step 1: set (single labeled timer) — deterministic via GET_STATUS ==="))
         self.prompt('Say to the device: "set a 3 minute pasta timer"')
-        m = self.mon.wait_for(RE_TIMER_STARTED, timeout=8, since=since)
-        if m:
-            self.record(
-                "timer.set started",
-                m.group(3) == "pasta" and int(m.group(2)) == 180,
-                f"id={m.group(1)} dur={m.group(2)}s label='{m.group(3)}'",
-            )
-        else:
-            self.record("timer.set started", None, "no log evidence; confirm OLED shows the timer")
-        self.prompt('Say: "what timers do I have?" and confirm it lists the pasta timer')
-        self.record("timer.list reflects pasta timer", None, "visual confirmation only")
+        timers = self.mon.poll_timers(
+            lambda ts: self._find_label(ts, "pasta") is not None, timeout=10
+        )
+        if timers is None:
+            self.record("timer.set appears in GET_STATUS", False, "no 'pasta' timer in status after 10s")
+            return
+        t = self._find_label(timers, "pasta")
+        dur_ok = t.get("duration_seconds") == 180
+        rem = t.get("remaining_seconds", 0)
+        rem_ok = 150 <= rem <= 180  # allow for speech/dialog latency
+        self.record(
+            "timer.set duration correct (180s)",
+            dur_ok,
+            f"id={t.get('id')} duration={t.get('duration_seconds')}s remaining={rem}s",
+        )
+        self.record("timer.set remaining sane", rem_ok or None,
+                    f"remaining={rem}s (expected ~150-180)")
 
     def step_concurrent(self) -> None:
-        print(bold("\n=== Step 2: two concurrent labeled timers, soonest fires first ==="))
-        since = self.mon.mark()
+        print(bold("\n=== Step 2: two concurrent timers, soonest fires first ==="))
         self.prompt('Say: "set a 30 second tea timer"')
-        m = self.mon.wait_for(RE_TIMER_STARTED, timeout=8, since=since)
-        if m:
-            self.record("second timer started", m.group(3) == "tea", f"id={m.group(1)} label='{m.group(3)}'")
+        timers = self.mon.poll_timers(
+            lambda ts: self._find_label(ts, "tea") is not None, timeout=10
+        )
+        if timers is None:
+            self.record("second timer appears in GET_STATUS", False, "no 'tea' timer in status")
         else:
-            self.record("second timer started", None, "no log evidence; confirm OLED")
+            count = len(timers)
+            self.record(
+                "two timers active concurrently",
+                count >= 2,
+                f"{count} active: {[t.get('label') for t in timers]}",
+            )
+
+        # Expiry is an event — catch it via the log.
         print(yellow("    Waiting up to 45s for the 30s tea timer to expire..."))
-        exp = self.mon.wait_for(RE_TIMER_EXPIRED, timeout=45, since=since)
-        if exp:
-            self.record("soonest timer expired first", True, f"timer id={exp.group(1)} fired")
-        else:
-            self.record("soonest timer expired first", None, "no expiry log; did you hear/see the alert?")
-        self.prompt("Confirm the pasta timer is STILL running after the tea timer fired")
-        self.record("other timer survives peer expiry", None, "visual confirmation only")
+        exp = self.mon.wait_for(RE_TIMER_EXPIRED, timeout=45)
+        self.record("soonest timer expired", bool(exp) or None,
+                    f"timer id={exp.group(1)} fired" if exp else "no expiry log; did you hear the alert?")
+
+        # Deterministic: pasta must still be in GET_STATUS, tea must be gone.
+        timers_after = self.mon.query_timers()
+        pasta_alive = self._find_label(timers_after, "pasta") is not None
+        tea_gone = self._find_label(timers_after, "tea") is None
+        self.record("other timer survives peer expiry", pasta_alive,
+                    f"pasta {'present' if pasta_alive else 'MISSING'}")
+        self.record("expired timer removed from status", tea_gone,
+                    f"tea {'gone' if tea_gone else 'STILL LISTED'}")
 
     def step_cancel_repeat(self) -> None:
-        print(bold("\n=== Step 3: cancel + repeat ==="))
-        since = self.mon.mark()
+        print(bold("\n=== Step 3: cancel + repeat — deterministic via GET_STATUS ==="))
+        # Ensure there is a pasta timer to cancel (from step 1) or create one.
+        if self._find_label(self.mon.query_timers(), "pasta") is None:
+            self.prompt('Say: "set a 5 minute pasta timer" (needed as a cancel target)')
+            self.mon.poll_timers(lambda ts: self._find_label(ts, "pasta") is not None, timeout=10)
+
         self.prompt('Say: "cancel the pasta timer"')
-        m = self.mon.wait_for(RE_TIMER_CANCELED, timeout=8, since=since)
-        self.record("timer.cancel", bool(m) or None, f"timer id={m.group(1)} canceled" if m else "no log evidence")
-        since = self.mon.mark()
+        gone = self.mon.poll_timers(
+            lambda ts: self._find_label(ts, "pasta") is None, timeout=10
+        )
+        self.record("timer.cancel removes it from status", gone is not None,
+                    "pasta no longer in GET_STATUS" if gone is not None else "pasta still listed after 10s")
+
+        before = {t.get("id") for t in self.mon.query_timers()}
         self.prompt('Say: "repeat that timer" (or "do it again")')
-        m = self.mon.wait_for(RE_TIMER_STARTED, timeout=8, since=since)
-        self.record("timer.repeat restarts", bool(m) or None, f"new id={m.group(1)}" if m else "no log evidence")
+        grew = self.mon.poll_timers(
+            lambda ts: bool({t.get("id") for t in ts} - before), timeout=10
+        )
+        if grew is not None:
+            new_ids = {t.get("id") for t in grew} - before
+            self.record("timer.repeat creates a new timer", True, f"new id(s)={sorted(new_ids)}")
+        else:
+            self.record("timer.repeat creates a new timer", False, "no new timer id in status after 10s")
 
     def step_reboot_persistence(self) -> None:
-        print(bold("\n=== Step 4: reboot persistence (AUTOMATED) ==="))
-        since = self.mon.mark()
-        self.prompt('Say: "set a 10 minute laundry timer", then confirm it shows on the OLED')
-        started = self.mon.wait_for(RE_TIMER_STARTED, timeout=8, since=since)
-        if not started:
-            print(yellow("    No 'Timer started' log seen — continuing on your visual confirmation."))
+        print(bold("\n=== Step 4: reboot persistence — deterministic via GET_STATUS ==="))
+        self.prompt('Say: "set a 10 minute laundry timer"')
+        pre = self.mon.poll_timers(
+            lambda ts: self._find_label(ts, "laundry") is not None, timeout=10
+        )
+        if pre is None:
+            self.record("laundry timer set pre-reboot", False, "not in status; aborting reboot step")
+            return
+        t = self._find_label(pre, "laundry")
+        rem_before = t.get("remaining_seconds", 0)
+        print(f"    laundry timer present pre-reboot: id={t.get('id')} remaining={rem_before}s")
+
         print(yellow("    Sending RESTART over serial..."))
         reply = self.mon.send_command("RESTART")
         if reply:
             print(f"    device replied: {reply}")
-        reboot_since = self.mon.mark()
-        print(yellow("    Waiting up to 30s for boot + 'Rehydrated timers from NVS'..."))
-        rehy = self.mon.wait_for(RE_REHYDRATED, timeout=30, since=reboot_since)
+
+        # Corroborate via boot log if available (informational), then assert via status.
+        rehy = self.mon.wait_for(RE_REHYDRATED, timeout=30, since=self.mon.mark())
         if rehy:
-            self.record(
-                "timer rehydrated after reboot",
-                int(rehy.group(1)) >= 1,
-                f"count={rehy.group(1)}",
-            )
-        else:
-            self.record(
-                "timer rehydrated after reboot",
-                None,
-                "no rehydration log (check CORE_DEBUG_LEVEL); confirm OLED still shows laundry timer",
-            )
-        self.prompt("Confirm the laundry timer is still counting down on the OLED post-reboot")
-        self.record("timer visible post-reboot", None, "visual confirmation only")
+            print(green(f"    boot log: Rehydrated timers from NVS (count={rehy.group(1)})"))
+
+        print(yellow("    Polling GET_STATUS (up to 40s) for the laundry timer to reappear..."))
+        post = self.mon.poll_timers(
+            lambda ts: self._find_label(ts, "laundry") is not None, timeout=40
+        )
+        if post is None:
+            self.record("timer survives reboot", False, "laundry timer absent from status post-reboot")
+            return
+        t2 = self._find_label(post, "laundry")
+        rem_after = t2.get("remaining_seconds", 0)
+        # Remaining should have decreased (time passed) but still be > 0 and not reset to full.
+        sane = 0 < rem_after <= rem_before
+        self.record("timer survives reboot", True, f"reappeared: remaining {rem_before}s -> {rem_after}s")
+        self.record("rehydrated remaining counted down (not reset)", sane,
+                    f"{rem_after}s vs pre-reboot {rem_before}s")
 
     def step_cap(self) -> None:
-        print(bold("\n=== Step 5: 8-timer cap enforced ==="))
+        print(bold("\n=== Step 5: 8-timer cap — deterministic via GET_STATUS ==="))
+        print(yellow("    Current active timers will count toward the cap. Cancel any first if needed."))
         self.prompt(
-            "Set 8 timers (any durations/labels), then try a 9th.\n"
-            "    The 9th should fail with a 'max timers' / timer_start_failed style response."
+            "Set enough timers to reach 8 total active (any durations/labels).\n"
+            "    Tip: use distinct labels so they're easy to track."
         )
-        self.record("9th timer rejected", None, "confirm the assistant reports it could not add a 9th timer")
+        timers = self.mon.poll_timers(lambda ts: len(ts) >= 8, timeout=20)
+        if timers is None:
+            n = len(self.mon.query_timers())
+            self.record("reached 8 active timers", None, f"only {n} active; set more or adjust, then re-run --only cap")
+            return
+        self.record("8 timers active", len(timers) == 8, f"{len(timers)} active")
+
+        self.prompt('Now try to set a 9th timer. The assistant should refuse.')
+        after = self.mon.query_timers()
+        self.record("9th timer rejected (cap holds)", len(after) <= 8,
+                    f"{len(after)} active after attempting a 9th (must stay <= 8)")
 
     def summary(self) -> int:
         print(bold("\n================ SUMMARY ================"))
@@ -301,10 +397,9 @@ class Harness:
             )
         )
         print(
-            "\n  Auto-pass = serial log corroborated the behavior.\n"
-            "  Need-human-confirm = relies on your OLED/audio observation (expected for\n"
-            "  voice-driven MCP tools). Only a FAIL means the log actively contradicted\n"
-            "  the expected behavior."
+            "\n  PASS = GET_STATUS (or boot log, for rehydration) confirmed the behavior.\n"
+            "  INCONCLUSIVE = a soft/latency-sensitive check; review the detail.\n"
+            "  FAIL = device state contradicted the expected behavior."
         )
         return 1 if failed else 0
 
@@ -331,7 +426,7 @@ def main() -> int:
     ap.add_argument(
         "--non-interactive",
         action="store_true",
-        help="don't pause for human prompts (log-observation only).",
+        help="don't pause for human prompts (you must trigger actions out-of-band).",
     )
     ap.add_argument(
         "--tail",
@@ -364,6 +459,19 @@ def main() -> int:
                         seen = time.time()
                 time.sleep(0.1)
 
+        # Capability check: confirm this firmware reports timers in GET_STATUS.
+        status = mon.query_status()
+        if status is None:
+            print(red("warning: GET_STATUS returned no parseable JSON. Is the device in a"
+                      " mode that answers serial commands? Continuing, but state checks may fail."))
+        elif "timer_count" not in status:
+            print(red("warning: this firmware's GET_STATUS has no 'timer_count'/'timers' field."
+                      "\n  The deterministic checks need the F1 GET_STATUS change flashed."
+                      "\n  Re-flash, or fall back to --tail for log-only observation."))
+        else:
+            print(green(f"GET_STATUS reports timers (timer_count={status.get('timer_count')}). "
+                        "Deterministic checks enabled.\n"))
+
         harness = Harness(mon, interactive=not args.non_interactive)
         chosen = args.only or list(STEPS)
         for key in chosen:
@@ -378,12 +486,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-# -----------------------------------------------------------------------------
-# Follow-up idea (not done here, would require a firmware change):
-# Wire active timer state into the GET_STATUS serial response (SerialClient::
-# handleGetStatus) — e.g. doc["timers"] = [...]. That would let this script
-# assert timer state deterministically over serial without depending on
-# ESP_LOGI reaching the console or on voice input, making steps 1, 4 and 5
-# fully automated.
-# -----------------------------------------------------------------------------

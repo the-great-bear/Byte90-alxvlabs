@@ -147,6 +147,9 @@ Application::Application(
     if (_ui) {
         _ui->setTimerManager(_timer_manager);
     }
+    if (_serial_client) {
+        _serial_client->setTimerManager(_timer_manager);
+    }
     if (_adxl_manager) {
         _adxl_manager->setTimerActiveProvider([this]() {
             return _timer_manager && _timer_manager->isRunning();
