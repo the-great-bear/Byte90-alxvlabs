@@ -174,7 +174,7 @@ Captured from live OTA provisioning logs (`https://api.tenclass.net/xiaozhi/ota/
     "ip": "192.168.86.26",
     "mac": "1c:db:d4:75:88:cc"
   },
-  "firmware_version": "3.0.0"
+  "firmware_version": "3.1.0"
 }
 ```
 

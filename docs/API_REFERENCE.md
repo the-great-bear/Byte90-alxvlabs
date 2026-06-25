@@ -105,7 +105,7 @@ Captured from live OTA check logs.
     "ip": "192.168.86.26",
     "mac": "1c:db:d4:75:88:cc"
   },
-  "firmware_version": "3.0.0"
+  "firmware_version": "3.1.0"
 }
 ```
 
@@ -260,7 +260,7 @@ Captured from live OTA check logs.
       },
       "serverInfo": {
         "name": "BYTE-90",
-        "version": "3.0.0"
+        "version": "3.1.0"
       }
     }
   }
@@ -557,27 +557,41 @@ Captured from live OTA check logs.
     "result": {
       "tools": [
         {
-          "name": "self.timer.status",
-          "description": "Get the current timer status.\nUse this tool for:\n1. Answering questions about whether a timer is running and time remaining.",
+          "name": "self.timer.list",
+          "description": "List all active timers.\nUse this tool for:\n1. Answering 'what timers do I have running?' or before canceling a specific timer.",
           "inputSchema": {
             "type": "object",
             "properties": {}
+          }
+        },
+        {
+          "name": "self.timer.status",
+          "description": "Get the status of a specific timer (or the soonest-expiring one if no id given).\nUse this tool for:\n1. Answering questions about whether a timer is running and time remaining.\nNotes: omit id or pass 0 to query the soonest-expiring running timer.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer", "minimum": 0, "maximum": 255 }
+            }
           }
         },
         {
           "name": "self.timer.cancel",
-          "description": "Cancel the active timer.\nUse this tool for:\n1. Stopping a running timer when the user asks to cancel it.",
+          "description": "Cancel a timer by id, or the most-recently started timer if no id is given.\nUse this tool for:\n1. Stopping a running timer when the user asks to cancel it.",
           "inputSchema": {
             "type": "object",
-            "properties": {}
+            "properties": {
+              "id": { "type": "integer", "minimum": 0, "maximum": 255 }
+            }
           }
         },
         {
           "name": "self.timer.repeat",
-          "description": "Repeat the last timer duration.\nUse this tool for:\n1. Repeating the most recent timer when the user asks to do it again.",
+          "description": "Repeat (restart) a timer by id, or the most-recently started timer if no id is given.\nUse this tool for:\n1. Restarting a timer when the user asks to do it again.",
           "inputSchema": {
             "type": "object",
-            "properties": {}
+            "properties": {
+              "id": { "type": "integer", "minimum": 0, "maximum": 255 }
+            }
           }
         }
       ]

@@ -1,6 +1,6 @@
 # BYTE-90 Firmware — Architecture & Feature Breakdown
 
-> Enterprise-architect-style overview of the BYTE-90 v3.0.0 (Series 2 AI Edition) firmware. This document complements the existing per-subsystem deep dives in [`docs/`](docs/) by giving a single, top-down view of the product, its modules, capabilities, integrations, and risks.
+> Enterprise-architect-style overview of the BYTE-90 v3.1.0 (Series 2 AI Edition) firmware. This document complements the existing per-subsystem deep dives in [`docs/`](docs/) by giving a single, top-down view of the product, its modules, capabilities, integrations, and risks.
 >
 > **Scope:** the `main` branch of this repository (Xiaozhi AI / Tenclass pipeline). The `openai-api` branch swaps the AI backend but reuses the same architecture.
 >
@@ -17,7 +17,7 @@ BYTE-90 is an **AI-enabled interactive desktop toy** built around a Seeed Studio
 | **Animated character** | 128×128 SSD1351 OLED running GIF-based emotes, retro CRT effects (scanlines, tints, glitch, dot matrix), and a digital clock mode. |
 | **Motion-driven interactivity** | ADXL345 accelerometer detects taps, double-taps, shakes, tilts, and orientation changes — these drive animation state. |
 | **Voice AI agent** | Full-duplex Opus audio over WebSocket/MQTT-UDP to the Xiaozhi (Tenclass) backend, with on-device STT/TTS streaming and emotion metadata. |
-| **MCP tool framework** | The device exposes ~25 [Model Context Protocol](https://modelcontextprotocol.io/) tools (status, effects, clock, timers, weather, audio/display controls) callable by the LLM. |
+| **MCP tool framework** | The device exposes ~26 [Model Context Protocol](https://modelcontextprotocol.io/) tools (status, effects, clock, multi-timer, weather, audio/display controls) callable by the LLM. |
 | **Captive-portal configuration** | A Vite/TypeScript web UI flashed to LittleFS and served from the device for WiFi setup, brightness/volume/effects/themes, timezone/location, and OTA. |
 | **Power management** | AXP2101 PMU with battery monitoring, progressive sleep modes, and DRV2605L haptic feedback for ~2 days of battery life. |
 
@@ -154,7 +154,7 @@ The audio pipeline is the architectural centerpiece — a **dual-core, priority-
 | **`lib/protocol/`** | `ProtocolClient`, `ProtocolFactory`, `TenclassMqttProtocol`, `TenclassMqttAudioSink`, `TenclassWebsocketProtocol`, `TenclassWebsocketAudioSink` | Protocol abstraction layer with factory and per-transport audio sinks. |
 | **`lib/services/`** | `ApiClient`, `TenclassClient`, `TenclassMQTT`, `TenclassWebsocket` | High-level service clients: provisioning, MCP JSON payloads, MQTT/UDP and WebSocket session lifecycles. |
 | **`lib/storage/`** | `LittlefsManager`, `NvsStorage` | LittleFS asset access + NVS-backed typed settings (system, locale, timezone, location, effects, theme, UUID, WiFi creds). |
-| **`lib/system/`** | `DeviceConfig`, `DeviceSimulator`, `EventBus`, `SystemState`, `TaskManager`, `TimerManager`, `certs/` | Pin map / build-time config, host-side simulator stub, pub/sub event bus, system-state machine, FreeRTOS task registry, single-shot timer manager, and bundled root CA certificates. |
+| **`lib/system/`** | `DeviceConfig`, `DeviceSimulator`, `EventBus`, `SystemState`, `TaskManager`, `TimerManager`, `certs/` | Pin map / build-time config, host-side simulator stub, pub/sub event bus, system-state machine, FreeRTOS task registry, multi-timer manager (up to 8 concurrent, NVS-persisted), and bundled root CA certificates. |
 | **`lib/ui/`** | `ChargingAnimator`, `DigitalClock`, `DigitalClockController`, `DosBootAnimator`, `HapticsVisualizer`, `MotionAnimator`, `SleepAnimator`, `StatusBarLayout`, `TypingEffect`, `UIVisualizer` | UI orchestration: boot animation, digital clock mode, charging/sleep visuals, motion overlays, typing/teletype effect, and shared status bar layout. |
 
 ### `src/` (Application Layer)
@@ -229,7 +229,7 @@ The audio pipeline is the architectural centerpiece — a **dual-core, priority-
 - `ClockSync` syncs via NTP and resolves IANA timezone names.
 - `ClockRtc` reads/writes the on-board RTC.
 - `DigitalClock` + `DigitalClockController` render full-screen clock mode (enabled by the `self.display.show_clock` MCP tool).
-- `TimerManager` (`lib/system/`) is the engine behind the LLM-callable timer tools (1 s – 8 h range; mutually-exclusive hours/minutes/seconds).
+- `TimerManager` (`lib/system/`) is the engine behind the LLM-callable timer tools (1 s – 8 h range; mutually-exclusive hours/minutes/seconds). Supports up to 8 concurrent labeled timers, each with a unique id, persisted to NVS and rehydrated on boot.
 
 ---
 
@@ -257,7 +257,7 @@ Both transports are produced by `ProtocolFactory` and share a common control-mes
 
 ### 7.4 Model Context Protocol Server
 
-The firmware implements MCP `protocolVersion: 2024-11-05` with server name `BYTE-90`, version `3.0.0`. Tool discovery is paginated. The server consumes vision capabilities advertised by the client (`api.xiaozhi.me/vision/explain`).
+The firmware implements MCP `protocolVersion: 2024-11-05` with server name `BYTE-90`, version `3.1.0`. Tool discovery is paginated. The server consumes vision capabilities advertised by the client (`api.xiaozhi.me/vision/explain`).
 
 ---
 
@@ -299,12 +299,15 @@ All tools are registered in [`lib/mcp/McpToolRegistry.cpp`](lib/mcp/McpToolRegis
 | `self.display_effects.disable_all` | Reset all effects + tints. |
 
 ### Timers
+Up to 8 concurrent timers, each with a unique `id` and optional `label`; persisted to NVS and rehydrated on boot.
+
 | Tool | Purpose |
 |---|---|
-| `self.timer.set` | One of `hours` (0–8), `minutes` (0–480), `seconds` (0–28800). Returns `ends_at_epoch_ms`. |
-| `self.timer.status` | Active state + remaining time. |
-| `self.timer.cancel` | Cancel active timer. |
-| `self.timer.repeat` | Restart most recent duration. |
+| `self.timer.set` | One of `hours` (0–8), `minutes` (0–480), `seconds` (0–28800), plus optional `label` (≤24 chars). Returns `id` + `ends_at_epoch_ms`. |
+| `self.timer.list` | List all active timers (`id`, `label`, `duration_seconds`, `remaining_seconds`, `ends_at_epoch_ms`). |
+| `self.timer.status` | Active state + remaining time. Optional `id` (0 = soonest-expiring). |
+| `self.timer.cancel` | Cancel a timer by `id` (0 = most recent). |
+| `self.timer.repeat` | Restart a timer by `id` (0 = most recent) as a new timer. |
 
 > Tools return one of: `ReturnValue(true/false)`, an explicit JSON error string, or a heap-owned `JsonDocument*` for structured success. The tool framework supports `Property` parameters with min/max validation.
 
@@ -432,7 +435,7 @@ An enterprise-architect read of the codebase surfaces the following items worth 
 | 8 | **`compile_commands.json` (6.5 MB) committed** | Convenient for IDEs but inflates clone size and churns on flag changes. | Move to `.gitignore` and document the `pio run -t compiledb` workflow. |
 | 9 | **`webserver/node_modules` build artifact discipline** | The portal is rebuilt and the output committed to `data/portal/`. There is no CI gate ensuring `data/portal/` matches `webserver/src/`. | Add a CI step that re-runs `vite build` and diffs `data/portal/`. |
 | 10 | **No `.github/` workflows** | The repo has no committed CI configuration — linting, build, and test all rely on maintainer discipline. | Even a single `pio run` matrix would catch regressions before maintainer flash. |
-| 11 | **Documentation versioning drift** | [`docs/LOCAL_HTTP_API.md`](docs/LOCAL_HTTP_API.md) references firmware "3.1.0" while [`platformio.ini`](platformio.ini) declares `3.0.0`. | Single-source the version (e.g., generate doc snippets from `platformio.ini`). |
+| 11 | **Documentation versioning drift** | Resolved in 3.1.0: [`platformio.ini`](platformio.ini) now declares `3.1.0`, matching the docs (incl. [`docs/LOCAL_HTTP_API.md`](docs/LOCAL_HTTP_API.md)). All in-code version strings derive from the single `FIRMWARE_VERSION` macro. | Still worth single-sourcing doc snippets from `platformio.ini` to prevent future drift. |
 | 12 | **License vs branding clarity** | GPL-3.0 firmware but proprietary branding/assets is correctly called out in `README.md` and `CONTRIBUTING.md`. Downstream forks should preserve both notices verbatim. | No action; flagged for awareness. |
 
 ---

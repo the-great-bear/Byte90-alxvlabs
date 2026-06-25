@@ -53,7 +53,7 @@ Command format: `COMMAND` or `COMMAND:data` (plain text, newline-terminated — 
 
 | Command | Data | Description |
 |---------|------|-------------|
-| `GET_STATUS` | — | Returns JSON with WiFi state, IP, heap, etc. |
+| `GET_STATUS` | — | Returns JSON with WiFi state, IP, heap, and active timers (see below). |
 | `GET_INFO` | — | Returns firmware version, chip info, partition |
 | `WIFI_SCAN` | — | Scan for nearby networks |
 | `WIFI_STATUS` | — | Current WiFi connection status |
@@ -74,6 +74,29 @@ Example:
 ```
 $ echo "GET_STATUS" > /dev/ttyACM0
 OK:{"success":true,"state":"IDLE","wifi_connected":true,"ssid":"FP-BYOD","ip":"10.10.111.18",...}
+```
+
+### `GET_STATUS` timer fields
+
+`GET_STATUS` also reports active countdown timers (added in 3.1.0), so timer
+state can be read deterministically over serial without parsing logs. The
+`tools/timer_smoke_test.py` harness relies on these fields.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `timer_count` | int | Number of active timers (0–8) |
+| `timers` | array | One object per active timer |
+| `timers[].id` | int | Timer id (1-based) |
+| `timers[].label` | string | Optional label (empty if unnamed) |
+| `timers[].duration_seconds` | int | Original duration |
+| `timers[].remaining_seconds` | int | Seconds left until expiry |
+| `timers[].ends_at_epoch_ms` | int64 | Wall-clock expiry (0 if time not yet synced) |
+
+```
+OK:{...,"timer_count":2,"timers":[
+  {"id":1,"label":"pasta","duration_seconds":180,"remaining_seconds":171,"ends_at_epoch_ms":1750000000000},
+  {"id":2,"label":"tea","duration_seconds":30,"remaining_seconds":24,"ends_at_epoch_ms":1750000000000}
+]}
 ```
 
 ## AP Credentials

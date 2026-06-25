@@ -303,45 +303,63 @@ mcp->addTool(
 Pattern takeaway:
 - Prefer explicit errors and persistence for user preferences.
 
-## Example 7: `self.timer.set` (Validation + State + Time Math)
+## Example 7: `self.timer.set` (Validation + State + Time Math + Persistence)
 
-Timers show how to validate mutually-exclusive params, check subsystem state, and return computed metadata.
+Timers show how to validate mutually-exclusive params, attach an optional label,
+persist state, and return computed metadata.
 
 Key ideas:
 - Accept exactly one of hours/minutes/seconds.
 - Enforce limits (1 second to 8 hours).
-- Use `TimerManager` state guards.
-- Return `ends_at_epoch_ms` for UI or speech.
+- Accept an optional `label` (≤24 chars) so multiple timers are distinguishable.
+- Up to 8 timers run concurrently; `start()` returns the assigned `id` (0 = failure / cap reached).
+- Call `timer_manager->persistTimers(mcp->getStorage())` after any mutation so timers survive reboot.
+- Return `id`, `label`, and `ends_at_epoch_ms` for UI or speech.
 
 ```cpp
 mcp->addTool(
     "self.timer.set",
-    "Start a single countdown timer using hours OR minutes OR seconds.\n"
+    "Start a countdown timer using hours OR minutes OR seconds. Up to 8 timers can run concurrently.\n"
     "Use this tool for:\n"
-    "1. Creating a new timer when the user asks (e.g., 'set a 10 minute timer').\n"
-    "Notes: provide exactly one of hours, minutes, or seconds.",
+    "1. Creating a new timer when the user asks (e.g., 'set a 10 minute pasta timer').\n"
+    "Notes: provide exactly one of hours, minutes, or seconds. The optional label names the timer.",
     PropertyList({
-        Property("hours", PROPERTY_TYPE_INTEGER, 0, 0, 8),
+        Property("hours",   PROPERTY_TYPE_INTEGER, 0, 0, 8),
         Property("minutes", PROPERTY_TYPE_INTEGER, 0, 0, 480),
-        Property("seconds", PROPERTY_TYPE_INTEGER, 0, 0, 28800)
+        Property("seconds", PROPERTY_TYPE_INTEGER, 0, 0, 28800),
+        Property("label",   PROPERTY_TYPE_STRING,  "")
     }),
     [mcp](PropertyList& params) -> ReturnValue {
         auto* timer_manager = mcp ? mcp->getTimerManager() : nullptr;
         if (!timer_manager) {
             return ReturnValue("{\"error\":\"timer_unavailable\",\"message\":\"Timer unavailable.\"}");
         }
-        // Validate mutually exclusive inputs and start timer...
+        // Validate mutually exclusive inputs, then:
+        uint8_t id = timer_manager->start(duration_seconds, label.c_str(), format);
+        if (id == 0) {
+            return ReturnValue("{\"error\":\"timer_start_failed\",\"message\":\"Failed to start timer (max timers reached).\"}");
+        }
+        timer_manager->persistTimers(mcp->getStorage());  // survive reboot
+
         JsonDocument* response = new JsonDocument();
         (*response)["status"] = "ok";
-        (*response)["duration_seconds"] = 600;
-        (*response)["ends_at_epoch_ms"] = 0;
+        (*response)["id"] = id;
+        (*response)["label"] = label;
+        (*response)["duration_seconds"] = duration_seconds;
+        (*response)["ends_at_epoch_ms"] = ends_at;
         return ReturnValue(response);
     }
 );
 ```
 
+The companion tools follow the same shape:
+- `self.timer.list` — returns all active timers as an array (`id`, `label`, `duration_seconds`, `remaining_seconds`, `ends_at_epoch_ms`).
+- `self.timer.status` — optional `id` (0 = soonest-expiring running timer).
+- `self.timer.cancel` — optional `id` (0 = most-recently started); persists after canceling.
+- `self.timer.repeat` — optional `id` (0 = most-recent); restarts that duration/label as a new timer.
+
 Pattern takeaway:
-- Use this for tools that require strict param constraints and state checks.
+- Use this for tools that require strict param constraints, multi-instance state, and NVS persistence.
 
 ## ReturnValue Patterns
 

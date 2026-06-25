@@ -124,7 +124,7 @@ Built by `ApiClient::buildDeviceInfo()` and sent to the OTA URL:
     "ip": "192.168.x.x",
     "mac": "aa:bb:cc:dd:ee:ff"
   },
-  "firmware_version": "3.0.0"
+  "firmware_version": "3.1.0"
 }
 ```
 
@@ -171,7 +171,7 @@ Built by `ApiClient::buildDeviceInfo()` and sent to the OTA URL:
     "ip": "192.168.86.26",
     "mac": "1c:db:d4:75:88:cc"
   },
-  "firmware_version": "3.0.0"
+  "firmware_version": "3.1.0"
 }
 ```
 
@@ -194,7 +194,7 @@ Built by `ApiClient::buildDeviceInfo()` and sent to the OTA URL:
     "timeout_ms": 30000
   },
   "firmware": {
-    "version": "3.0.0",
+    "version": "3.1.0",
     "url": "https://..."
   },
   "websocket": {
