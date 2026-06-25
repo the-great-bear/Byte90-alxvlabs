@@ -9,33 +9,56 @@
 #include "ClockSync.h"
 
 #include <esp_log.h>
-#include <algorithm>
 #include <cstring>
+#include <new>
+#include <string>
 
 static const char* TAG = "TimerManager";
 
 #define NS_TIMERS   "timers"
 #define KEY_COUNT   "count"
 
+namespace {
+// RAII guard for the FreeRTOS mutex. Safe to hold across heap allocation.
+struct Lock {
+    SemaphoreHandle_t m;
+    explicit Lock(SemaphoreHandle_t mm) : m(mm) {
+        if (m) xSemaphoreTake(m, portMAX_DELAY);
+    }
+    ~Lock() {
+        if (m) xSemaphoreGive(m);
+    }
+    Lock(const Lock&) = delete;
+    Lock& operator=(const Lock&) = delete;
+};
+}  // namespace
+
 TimerManager::TimerManager()
     : _expired_callback(nullptr)
-    , _mux(portMUX_INITIALIZER_UNLOCKED)
+    , _mutex(xSemaphoreCreateMutex())
     , _last_id(0)
     , _last_duration_seconds(0)
     , _last_format(DisplayFormat::None) {
-    _entries.reserve(TIMER_MAX_ENTRIES);
-    _cb_args.reserve(TIMER_MAX_ENTRIES);
+    _last_label[0] = '\0';
+    // Reserve well above the active cap so push_back never reallocates in
+    // practice (8 running + up to 8 expiry-pending entries). With a FreeRTOS
+    // mutex a realloc would be safe anyway, but this avoids the churn.
+    _entries.reserve(2 * TIMER_MAX_ENTRIES);
 }
 
 TimerManager::~TimerManager() {
-    for (auto& e : _entries) {
-        if (e.esp_timer) {
-            esp_timer_stop(e.esp_timer);
-            esp_timer_delete(e.esp_timer);
-        }
+    std::vector<TimerEntry> doomed;
+    {
+        Lock l(_mutex);
+        doomed.swap(_entries);
     }
-    _entries.clear();
-    _cb_args.clear();
+    for (auto& e : doomed) {
+        destroyResources(e.esp_timer, e.cb_arg, /*stop_first=*/true);
+    }
+    if (_mutex) {
+        vSemaphoreDelete(_mutex);
+        _mutex = nullptr;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -55,74 +78,82 @@ uint8_t TimerManager::start(uint32_t duration_seconds, const char* label, Displa
         return 0;
     }
 
-    portENTER_CRITICAL(&_mux);
-    size_t active = 0;
-    for (auto& e : _entries) {
-        if (e.running) active++;
-    }
-    if (active >= TIMER_MAX_ENTRIES) {
-        portEXIT_CRITICAL(&_mux);
-        ESP_LOGW(TAG, "Max timers reached");
-        return 0;
-    }
-    portEXIT_CRITICAL(&_mux);
-
-    uint8_t id = allocId();
-    if (id == 0) {
-        return 0;
-    }
-
-    // Build the callback arg before pushing (pointer must be stable).
-    // We use _cb_args as a parallel stable-storage vector.
-    _cb_args.push_back({this, id});
-    CallbackArg* arg_ptr = &_cb_args.back();
-
+    uint8_t id = 0;
+    CallbackArg* arg = nullptr;
     esp_timer_handle_t handle = nullptr;
-    esp_timer_create_args_t args = {};
-    args.callback = &TimerManager::onTimerExpired;
-    args.arg = arg_ptr;
-    args.dispatch_method = ESP_TIMER_TASK;
-    args.name = "timer_mgr";
-    if (esp_timer_create(&args, &handle) != ESP_OK) {
-        ESP_LOGE(TAG, "esp_timer_create failed for id %u", id);
-        _cb_args.pop_back();
-        return 0;
+
+    {
+        Lock l(_mutex);
+
+        size_t active = 0;
+        for (const auto& e : _entries) {
+            if (e.running) active++;
+        }
+        if (active >= TIMER_MAX_ENTRIES) {
+            ESP_LOGW(TAG, "Max timers reached");
+            return 0;
+        }
+
+        id = allocId();
+        if (id == 0) {
+            return 0;
+        }
+
+        // Heap-allocate the callback arg so its address is stable for the
+        // lifetime of the esp_timer, regardless of _entries reallocation.
+        arg = new (std::nothrow) CallbackArg{this, id};
+        if (!arg) {
+            return 0;
+        }
+
+        esp_timer_create_args_t args = {};
+        args.callback = &TimerManager::onTimerExpired;
+        args.arg = arg;
+        args.dispatch_method = ESP_TIMER_TASK;
+        args.name = "timer_mgr";
+        if (esp_timer_create(&args, &handle) != ESP_OK) {
+            ESP_LOGE(TAG, "esp_timer_create failed for id %u", id);
+            delete arg;
+            return 0;
+        }
+
+        if (esp_timer_start_once(handle, static_cast<uint64_t>(duration_seconds) * 1000000ULL) != ESP_OK) {
+            ESP_LOGE(TAG, "esp_timer_start_once failed for id %u", id);
+            esp_timer_delete(handle);
+            delete arg;
+            return 0;
+        }
+
+        TimerEntry entry = {};
+        entry.id = id;
+        size_t copy_len = label ? strnlen(label, TIMER_LABEL_MAX) : 0;
+        if (copy_len) {
+            memcpy(entry.label, label, copy_len);
+        }
+        entry.label[copy_len] = '\0';
+        entry.duration_seconds = duration_seconds;
+        entry.format = format;
+        entry.running = true;
+        entry.expired = false;
+        entry.end_ms = millis() + static_cast<uint64_t>(duration_seconds) * 1000ULL;
+        ClockSync cs;
+        long long now_epoch = cs.epochMs();
+        entry.end_epoch_ms = now_epoch > 0
+            ? now_epoch + static_cast<long long>(duration_seconds) * 1000LL
+            : 0;
+        entry.esp_timer = handle;
+        entry.cb_arg = arg;
+
+        _entries.push_back(entry);
+
+        _last_id = id;
+        _last_duration_seconds = duration_seconds;
+        _last_format = format;
+        memcpy(_last_label, entry.label, sizeof(_last_label));
+
+        ESP_LOGI(TAG, "Timer %u started (%u s, label='%s')", id, duration_seconds, entry.label);
     }
 
-    if (esp_timer_start_once(handle, static_cast<uint64_t>(duration_seconds) * 1000000ULL) != ESP_OK) {
-        ESP_LOGE(TAG, "esp_timer_start_once failed for id %u", id);
-        esp_timer_delete(handle);
-        _cb_args.pop_back();
-        return 0;
-    }
-
-    TimerEntry entry = {};
-    entry.id = id;
-    size_t copy_len = label ? strnlen(label, TIMER_LABEL_MAX) : 0;
-    if (copy_len) {
-        memcpy(entry.label, label, copy_len);
-    }
-    entry.label[copy_len] = '\0';
-    entry.duration_seconds = duration_seconds;
-    entry.format = format;
-    entry.running = true;
-    entry.expired = false;
-    entry.end_ms = millis() + static_cast<uint64_t>(duration_seconds) * 1000ULL;
-    ClockSync cs;
-    long long now_epoch = cs.epochMs();
-    entry.end_epoch_ms = now_epoch > 0
-        ? now_epoch + static_cast<long long>(duration_seconds) * 1000LL
-        : 0;
-    entry.esp_timer = handle;
-
-    portENTER_CRITICAL(&_mux);
-    _entries.push_back(entry);
-    _last_id = id;
-    _last_duration_seconds = duration_seconds;
-    _last_format = format;
-    portEXIT_CRITICAL(&_mux);
-
-    ESP_LOGI(TAG, "Timer %u started (%u s, label='%s')", id, duration_seconds, entry.label);
     return id;
 }
 
@@ -131,22 +162,32 @@ uint8_t TimerManager::start(uint32_t duration_seconds, const char* label, Displa
 // ---------------------------------------------------------------------------
 
 bool TimerManager::cancel(uint8_t id) {
-    portENTER_CRITICAL(&_mux);
-    uint8_t target = (id == 0) ? _last_id : id;
-    TimerEntry* e = findEntry(target);
-    if (!e || !e->running) {
-        portEXIT_CRITICAL(&_mux);
+    esp_timer_handle_t handle = nullptr;
+    void* arg = nullptr;
+    uint8_t target = 0;
+
+    {
+        Lock l(_mutex);
+        target = (id == 0) ? _last_id : id;
+        for (auto it = _entries.begin(); it != _entries.end(); ++it) {
+            if (it->id == target && it->running) {
+                // Preserve enough state for a later repeat(0).
+                _last_duration_seconds = it->duration_seconds;
+                _last_format = it->format;
+                memcpy(_last_label, it->label, sizeof(_last_label));
+                handle = it->esp_timer;
+                arg = it->cb_arg;
+                _entries.erase(it);
+                break;
+            }
+        }
+    }
+
+    if (!handle && !arg) {
         return false;
     }
-    e->running = false;
-    e->expired = false;
-    e->end_ms = 0;
-    esp_timer_handle_t handle = e->esp_timer;
-    portEXIT_CRITICAL(&_mux);
 
-    if (handle) {
-        esp_timer_stop(handle);
-    }
+    destroyResources(handle, arg, /*stop_first=*/true);
     ESP_LOGI(TAG, "Timer %u canceled", target);
     return true;
 }
@@ -156,16 +197,24 @@ bool TimerManager::cancel(uint8_t id) {
 // ---------------------------------------------------------------------------
 
 uint8_t TimerManager::repeatTimer(uint8_t id) {
-    portENTER_CRITICAL(&_mux);
-    uint8_t target = (id == 0) ? _last_id : id;
-    const TimerEntry* e = findEntry(target);
-    uint32_t dur = e ? e->duration_seconds : _last_duration_seconds;
-    DisplayFormat fmt = e ? e->format : _last_format;
+    uint32_t dur = 0;
+    DisplayFormat fmt = DisplayFormat::Seconds;
     char label[TIMER_LABEL_MAX + 1] = {0};
-    if (e) {
-        memcpy(label, e->label, sizeof(label));
+
+    {
+        Lock l(_mutex);
+        uint8_t target = (id == 0) ? _last_id : id;
+        const TimerEntry* e = findEntry(target);
+        if (e) {
+            dur = e->duration_seconds;
+            fmt = e->format;
+            memcpy(label, e->label, sizeof(label));
+        } else {
+            dur = _last_duration_seconds;
+            fmt = _last_format;
+            memcpy(label, _last_label, sizeof(label));
+        }
     }
-    portEXIT_CRITICAL(&_mux);
 
     if (dur == 0) {
         return 0;
@@ -181,128 +230,113 @@ uint8_t TimerManager::repeatTimer(uint8_t id) {
 // ---------------------------------------------------------------------------
 
 bool TimerManager::isRunning() const {
-    portENTER_CRITICAL(&_mux);
+    Lock l(_mutex);
     for (const auto& e : _entries) {
-        if (e.running) {
-            portEXIT_CRITICAL(&_mux);
-            return true;
-        }
+        if (e.running) return true;
     }
-    portEXIT_CRITICAL(&_mux);
     return false;
 }
 
 bool TimerManager::isRunning(uint8_t id) const {
-    portENTER_CRITICAL(&_mux);
+    Lock l(_mutex);
     const TimerEntry* e = findEntry(id);
-    bool running = e && e->running;
-    portEXIT_CRITICAL(&_mux);
-    return running;
+    return e && e->running;
 }
 
 std::vector<TimerManager::TimerEntry> TimerManager::listActive() const {
-    portENTER_CRITICAL(&_mux);
+    Lock l(_mutex);
     std::vector<TimerEntry> result;
     for (const auto& e : _entries) {
-        if (e.running) {
-            result.push_back(e);
-        }
+        if (e.running) result.push_back(e);
     }
-    portEXIT_CRITICAL(&_mux);
     return result;
 }
 
 const TimerManager::TimerEntry* TimerManager::getEntry(uint8_t id) const {
-    portENTER_CRITICAL(&_mux);
-    const TimerEntry* e = findEntry(id);
-    portEXIT_CRITICAL(&_mux);
-    return e;
+    Lock l(_mutex);
+    return findEntry(id);
 }
 
 uint8_t TimerManager::lastTimerId() const {
-    portENTER_CRITICAL(&_mux);
-    uint8_t id = _last_id;
-    portEXIT_CRITICAL(&_mux);
-    return id;
+    Lock l(_mutex);
+    return _last_id;
 }
 
 uint32_t TimerManager::remainingSeconds() const {
-    portENTER_CRITICAL(&_mux);
-    const TimerEntry* soonest = soonestRunning();
-    if (!soonest) {
-        portEXIT_CRITICAL(&_mux);
-        return 0;
+    uint64_t end_ms = 0;
+    {
+        Lock l(_mutex);
+        const TimerEntry* soonest = soonestRunning();
+        if (!soonest) return 0;
+        end_ms = soonest->end_ms;
     }
-    uint64_t end_ms = soonest->end_ms;
-    portEXIT_CRITICAL(&_mux);
-
     uint64_t now_ms = millis();
     if (now_ms >= end_ms) return 0;
     return static_cast<uint32_t>((end_ms - now_ms) / 1000ULL);
 }
 
 uint32_t TimerManager::durationSeconds() const {
-    portENTER_CRITICAL(&_mux);
+    Lock l(_mutex);
     const TimerEntry* soonest = soonestRunning();
-    uint32_t dur = soonest ? soonest->duration_seconds : 0;
-    portEXIT_CRITICAL(&_mux);
-    return dur;
+    return soonest ? soonest->duration_seconds : 0;
 }
 
 TimerManager::DisplayFormat TimerManager::displayFormat() const {
-    portENTER_CRITICAL(&_mux);
+    Lock l(_mutex);
     const TimerEntry* soonest = soonestRunning();
-    DisplayFormat fmt = soonest ? soonest->format : DisplayFormat::None;
-    portEXIT_CRITICAL(&_mux);
-    return fmt;
+    return soonest ? soonest->format : DisplayFormat::None;
 }
 
 uint32_t TimerManager::lastDurationSeconds() const {
-    portENTER_CRITICAL(&_mux);
-    uint32_t dur = _last_duration_seconds;
-    portEXIT_CRITICAL(&_mux);
-    return dur;
+    Lock l(_mutex);
+    return _last_duration_seconds;
 }
 
 TimerManager::DisplayFormat TimerManager::lastDisplayFormat() const {
-    portENTER_CRITICAL(&_mux);
-    DisplayFormat fmt = _last_format;
-    portEXIT_CRITICAL(&_mux);
-    return fmt;
+    Lock l(_mutex);
+    return _last_format;
 }
 
 // ---------------------------------------------------------------------------
-// Update (called from main loop)
+// Update (called from main loop) - delivers callbacks and reaps fired timers
 // ---------------------------------------------------------------------------
 
 void TimerManager::update() {
-    std::vector<std::pair<uint8_t, std::string>> fired;
+    struct Fired {
+        uint8_t id;
+        std::string label;
+        esp_timer_handle_t handle;
+        void* arg;
+    };
+    std::vector<Fired> fired;
+    ExpiredCallback cb;
 
-    portENTER_CRITICAL(&_mux);
-    for (auto& e : _entries) {
-        if (e.expired) {
-            e.expired = false;
-            fired.push_back({e.id, std::string(e.label)});
+    {
+        Lock l(_mutex);
+        cb = _expired_callback;
+        for (auto it = _entries.begin(); it != _entries.end();) {
+            if (it->expired) {
+                fired.push_back({it->id, std::string(it->label), it->esp_timer, it->cb_arg});
+                it = _entries.erase(it);
+            } else {
+                ++it;
+            }
         }
     }
-    portEXIT_CRITICAL(&_mux);
 
-    ExpiredCallback cb;
-    portENTER_CRITICAL(&_mux);
-    cb = _expired_callback;
-    portEXIT_CRITICAL(&_mux);
-
+    // Outside the lock: fire callbacks, then release the OS/heap resources of
+    // the (already-fired, already-stopped) one-shot timers.
     for (auto& f : fired) {
         if (cb) {
-            cb(f.first, f.second.c_str());
+            cb(f.id, f.label.c_str());
         }
+        destroyResources(f.handle, f.arg, /*stop_first=*/false);
     }
 }
 
 void TimerManager::setExpiredCallback(ExpiredCallback callback) {
-    portENTER_CRITICAL(&_mux);
+    Lock l(_mutex);
     _expired_callback = callback;
-    portEXIT_CRITICAL(&_mux);
 }
 
 // ---------------------------------------------------------------------------
@@ -311,16 +345,17 @@ void TimerManager::setExpiredCallback(ExpiredCallback callback) {
 
 void TimerManager::persistTimers(NVSStorage* storage) {
     if (!storage) return;
-    if (!storage->beginTimers(false)) return;
 
-    Preferences& p = storage->getTimersPrefs();
-
-    portENTER_CRITICAL(&_mux);
     std::vector<TimerEntry> active;
-    for (const auto& e : _entries) {
-        if (e.running) active.push_back(e);
+    {
+        Lock l(_mutex);
+        for (const auto& e : _entries) {
+            if (e.running) active.push_back(e);
+        }
     }
-    portEXIT_CRITICAL(&_mux);
+
+    if (!storage->beginTimers(false)) return;
+    Preferences& p = storage->getTimersPrefs();
 
     p.putUChar(KEY_COUNT, static_cast<uint8_t>(active.size()));
     for (size_t i = 0; i < active.size(); i++) {
@@ -389,20 +424,19 @@ void TimerManager::rehydrateTimers(NVSStorage* storage) {
             continue;
         }
 
-        // start() will allocate a new id, but we preserve the label/format.
-        // We can't guarantee the original id is reused, which is fine.
-        (void)id;
-        start(remaining, label_str.c_str(), fmt);
+        // start() assigns a fresh id; preserve the saved label/format and fix
+        // up the original epoch deadline so the countdown stays accurate.
+        uint8_t new_id = start(remaining, label_str.c_str(), fmt);
+        if (new_id == 0) {
+            continue;
+        }
 
-        // Fix up end_epoch_ms on the just-added entry to match original.
-        portENTER_CRITICAL(&_mux);
-        TimerEntry* e = findEntry(_last_id);
+        Lock l(_mutex);
+        TimerEntry* e = findEntry(new_id);
         if (e) {
             e->end_epoch_ms = end_epoch;
-            // Adjust duration_seconds to original for display/repeat accuracy.
             e->duration_seconds = dur;
         }
-        portEXIT_CRITICAL(&_mux);
     }
 
     storage->endTimers();
@@ -421,15 +455,24 @@ void TimerManager::onTimerExpired(void* arg) {
 }
 
 void TimerManager::markExpired(uint8_t id) {
-    portENTER_CRITICAL(&_mux);
+    Lock l(_mutex);
     TimerEntry* e = findEntry(id);
     if (e) {
         e->running = false;
         e->expired = true;
         e->end_ms = 0;
     }
-    portEXIT_CRITICAL(&_mux);
     ESP_LOGI(TAG, "Timer %u expired", id);
+}
+
+void TimerManager::destroyResources(esp_timer_handle_t handle, void* cb_arg, bool stop_first) {
+    if (handle) {
+        if (stop_first) {
+            esp_timer_stop(handle);
+        }
+        esp_timer_delete(handle);
+    }
+    delete static_cast<CallbackArg*>(cb_arg);
 }
 
 TimerManager::TimerEntry* TimerManager::findEntry(uint8_t id) {
@@ -457,8 +500,8 @@ const TimerManager::TimerEntry* TimerManager::soonestRunning() const {
     return best;
 }
 
-uint8_t TimerManager::allocId() {
-    // IDs 1-255; skip any currently in _entries.
+uint8_t TimerManager::allocId() const {
+    // IDs 1-255; skip any currently present in _entries (caller holds _mutex).
     for (uint16_t candidate = 1; candidate <= 255; candidate++) {
         bool used = false;
         for (const auto& e : _entries) {

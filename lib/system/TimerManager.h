@@ -8,6 +8,8 @@
 
 #include <Arduino.h>
 #include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <functional>
 #include <vector>
 
@@ -26,6 +28,16 @@ static constexpr uint8_t TIMER_LABEL_MAX    = 24;
  * - cancel()/repeat()/status queries accept an id; 0 targets the most-recent
  * - Backward-compatible single-timer query methods (isRunning, remainingSeconds,
  *   durationSeconds, displayFormat) reflect the soonest-expiring running timer
+ *
+ * Lifecycle / threading:
+ * - Each timer owns a heap-allocated callback arg (stable address) and an
+ *   esp_timer handle; both are freed when the timer is canceled or its expiry
+ *   is consumed by update(), so neither _entries nor the esp_timer pool grows
+ *   unbounded.
+ * - Shared state is guarded by a FreeRTOS mutex (safe to hold across heap
+ *   allocation and from the esp_timer dispatch task). esp_timer_delete is
+ *   always called AFTER releasing the mutex to avoid deadlocking against the
+ *   dispatch task.
  */
 class TimerManager {
 public:
@@ -46,6 +58,7 @@ public:
         uint64_t end_ms;
         long long end_epoch_ms;
         esp_timer_handle_t esp_timer;
+        void* cb_arg;  // owning CallbackArg*, opaque to callers
     };
 
     using ExpiredCallback = std::function<void(uint8_t id, const char* label)>;
@@ -99,18 +112,22 @@ private:
     static void onTimerExpired(void* arg);
     void markExpired(uint8_t id);
 
+    // Caller must hold _mutex for the find* helpers.
     TimerEntry* findEntry(uint8_t id);
     const TimerEntry* findEntry(uint8_t id) const;
     const TimerEntry* soonestRunning() const;
-    uint8_t allocId();
+    uint8_t allocId() const;
+
+    // Destroy a detached timer's OS/heap resources. Call WITHOUT _mutex held.
+    static void destroyResources(esp_timer_handle_t handle, void* cb_arg, bool stop_first);
 
     std::vector<TimerEntry> _entries;
-    std::vector<CallbackArg> _cb_args;
 
     ExpiredCallback _expired_callback;
-    mutable portMUX_TYPE _mux;
+    mutable SemaphoreHandle_t _mutex;
 
     uint8_t _last_id;
     uint32_t _last_duration_seconds;
     DisplayFormat _last_format;
+    char _last_label[TIMER_LABEL_MAX + 1];
 };

@@ -135,6 +135,35 @@ static void test_soonest_expiring_reflected_in_remaining() {
     timer.cancel(id2);
 }
 
+static void test_many_start_cancel_cycles_no_exhaustion() {
+    // Regression: cumulative starts must not leak entries/handles, invalidate
+    // callback args, or exhaust ids. Far exceeds the 8 concurrent cap.
+    TimerManager timer;
+    for (int i = 0; i < 50; i++) {
+        uint8_t id = timer.start(3600);
+        TEST_ASSERT_NOT_EQUAL(0, id);
+        TEST_ASSERT_TRUE(timer.cancel(id));
+        TEST_ASSERT_FALSE(timer.isRunning(id));
+    }
+    TEST_ASSERT_FALSE(timer.isRunning());
+    // A fresh start still succeeds after all the churn.
+    uint8_t id = timer.start(60);
+    TEST_ASSERT_NOT_EQUAL(0, id);
+    TEST_ASSERT_TRUE(timer.cancel(id));
+}
+
+static void test_expiry_reaps_entry() {
+    // Regression: a fired timer must be removed from the table by update(),
+    // not linger as a dead entry.
+    TimerManager timer;
+    uint8_t id = timer.start(1, "x", TimerManager::DisplayFormat::Seconds);
+    TEST_ASSERT_NOT_EQUAL(0, id);
+    delay(1200);
+    timer.update();
+    TEST_ASSERT_NULL(timer.getEntry(id));
+    TEST_ASSERT_FALSE(timer.isRunning());
+}
+
 static void test_expiry_callback_fires_with_id_and_label() {
     TimerManager timer;
     uint8_t fired_id = 0;
@@ -167,6 +196,8 @@ int run_timer_manager_tests(void) {
     RUN_TEST(test_repeat_uses_last_duration_and_label);    n++;
     RUN_TEST(test_max_timers_enforced);                    n++;
     RUN_TEST(test_soonest_expiring_reflected_in_remaining); n++;
+    RUN_TEST(test_many_start_cancel_cycles_no_exhaustion); n++;
+    RUN_TEST(test_expiry_reaps_entry);                     n++;
     RUN_TEST(test_expiry_callback_fires_with_id_and_label); n++;
 
     return n;
