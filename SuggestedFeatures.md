@@ -11,7 +11,7 @@
 | # | Feature | Current state | Net work |
 |---|---|---|---|
 | 1 | Voice-activated timers | **Already shipping.** `self.timer.{set,status,cancel,repeat}` exist in `lib/mcp/McpToolRegistry.cpp`, backed by `lib/system/TimerManager`. Single-timer only, no labels, no persistence across reboot. | **Enhance** |
-| 2 | Bluetooth audio passthrough | **Hardware-blocked.** XIAO ESP32-S3 has BLE 5 only — no Bluetooth Classic → no A2DP. Needs re-scope. | **Decide path first** |
+| ~~2~~ | ~~Bluetooth audio passthrough~~ | ~~**Hardware-blocked.** XIAO ESP32-S3 has BLE 5 only — no Bluetooth Classic → no A2DP. Needs re-scope.~~ | ~~**Decide path first**~~ |
 | 3 | Weather updates | `self.get_weather` exists (Google Weather API), but reactive only — no schedule, no on-screen display, no cache. | **Extend** |
 | 4 | More jokes | `self.tell_joke` returns a static 3-joke prompt; no categories, no data file. | **Small** |
 
@@ -44,32 +44,32 @@
 
 ---
 
-## Feature 2 — Bluetooth audio passthrough  ⚠ hardware constraint
+## ~~Feature 2 — Bluetooth audio passthrough  ⚠ hardware constraint~~
 
-The XIAO ESP32-S3 supports **Bluetooth 5.0 LE only**. Bluetooth Classic / A2DP / HFP is not available on this MCU. Anything sold as "Bluetooth audio" in the consumer sense is A2DP — that path is blocked without a hardware change.
+~~The XIAO ESP32-S3 supports **Bluetooth 5.0 LE only**. Bluetooth Classic / A2DP / HFP is not available on this MCU. Anything sold as "Bluetooth audio" in the consumer sense is A2DP — that path is blocked without a hardware change.~~
 
-### Pick one — decision required before further planning
+### ~~Pick one — decision required before further planning~~
 
-**Path A — BLE LE Audio (LC3 codec)**
-- Espressif's LE Audio stack is still maturing; sink role works in recent ESP-IDF; source role is rougher.
-- Phones with LE-Audio support are scarce (Pixel 8+, recent Samsung). Most users get nothing.
-- Couples firmware to specific ESP-IDF versions.
+~~**Path A — BLE LE Audio (LC3 codec)**~~
+~~- Espressif's LE Audio stack is still maturing; sink role works in recent ESP-IDF; source role is rougher.~~
+~~- Phones with LE-Audio support are scarce (Pixel 8+, recent Samsung). Most users get nothing.~~
+~~- Couples firmware to specific ESP-IDF versions.~~
 
-**Path B — "Wireless audio passthrough" over WiFi** *(recommended)*
-- Honors the user-facing intent without fighting the silicon.
-- Options: lightweight HTTP/WebSocket PCM sink (`lib/network/WebsocketClient` already exists), SnapCast client, or an AirPlay 1 receiver port.
-- New module `lib/audio/NetworkAudioSink` plugs into the existing `AudioCodec` output path — re-uses the Core 1 decode → ring buffer → I²S pipeline; new producer feeds the ring instead of the Opus decoder.
-- MCP tools: `self.audio.passthrough.start` / `.stop` / `.status`.
-- Captive portal toggle + status display.
-- Clean fit with current architecture.
+~~**Path B — "Wireless audio passthrough" over WiFi** *(recommended)*~~
+~~- Honors the user-facing intent without fighting the silicon.~~
+~~- Options: lightweight HTTP/WebSocket PCM sink (`lib/network/WebsocketClient` already exists), SnapCast client, or an AirPlay 1 receiver port.~~
+~~- New module `lib/audio/NetworkAudioSink` plugs into the existing `AudioCodec` output path — re-uses the Core 1 decode → ring buffer → I²S pipeline; new producer feeds the ring instead of the Opus decoder.~~
+~~- MCP tools: `self.audio.passthrough.start` / `.stop` / `.status`.~~
+~~- Captive portal toggle + status display.~~
+~~- Clean fit with current architecture.~~
 
-**Path C — Add an external BT module (PCB revision)**
-- e.g., CSR8645 / BM83 over I²S routed to the speaker amp.
-- Out of scope for firmware-only; flag for a future Series 3 board.
+~~**Path C — Add an external BT module (PCB revision)**~~
+~~- e.g., CSR8645 / BM83 over I²S routed to the speaker amp.~~
+~~- Out of scope for firmware-only; flag for a future Series 3 board.~~
 
-### Acceptance (Path B)
+### ~~Acceptance (Path B)~~
 
-Phone / laptop streams PCM to `byte90.local`; audio comes out the speaker with <300 ms latency; existing AI session pauses passthrough cleanly; passthrough survives a 30-minute stress test.
+~~Phone / laptop streams PCM to `byte90.local`; audio comes out the speaker with <300 ms latency; existing AI session pauses passthrough cleanly; passthrough survives a 30-minute stress test.~~
 
 ---
 
@@ -142,7 +142,7 @@ Two unit systems, because the relevant cost depends on who's writing:
 | F4 jokes | 1–2 | ~30 min | Flashing + verifying bilingual output |
 | F1 multi-timer | 2–3 | ~1–2 hr | NVS-rehydration edge cases, unit-test pass |
 | F3 weather | 3–4 | ~2–3 hr | API-key wiring, on-device display tuning |
-| F2 Path B (WiFi passthrough) | 4–5 | ~3–4 hr | Real-device latency tuning, audio quality |
+| ~~F2 Path B (WiFi passthrough)~~ | ~~4–5~~ | ~~~3–4 hr~~ | ~~Real-device latency tuning, audio quality~~ |
 
 **Caveat for the agent column:** the typing isn't the bottleneck — the loop is. Per [`AGENTS.md`](AGENTS.md), the maintainer flashes locally; CI does not. So the real cycle is **agent writes → maintainer flashes → maintainer reports → agent patches**. Each round-trip is the actual cost driver, not the code generation.
 
@@ -155,15 +155,15 @@ Two unit systems, because the relevant cost depends on who's writing:
 1. **F4 (jokes)** — lowest risk; validates the asset-loading + tool-param-extension pattern. ~1 day.
 2. **F1 (multi-timer)** — touches `TimerManager` + NVS persistence; builds the rehydration pattern reused by F3.
 3. **F3 (weather)** — depends on F1's NVS rehydration + the `GOOGLE_WEATHER_API_KEY` portal-config migration.
-4. **F2 (audio passthrough)** — **blocked** until a Path A vs Path B vs Path C decision lands. Don't start until decided.
+4. ~~**F2 (audio passthrough)** — **blocked** until a Path A vs Path B vs Path C decision lands. Don't start until decided.~~
 
-**Total ship time:** ~10–14 human dev-days assuming F2 = Path B. F1, F3, F4 ship independently.
+**Total ship time:** ~6–9 human dev-days for F1, F3, F4. ~~F2 struck — hardware-blocked.~~
 
 ---
 
 ## Cross-cutting Work to Budget Once
 
-- **Portal-side surfaces** for new toggles (jokes category default, weather schedule, passthrough on/off) → small `webserver/` work, ~½ day each.
+- **Portal-side surfaces** for new toggles (jokes category default, weather schedule) → small `webserver/` work, ~½ day each.
 - **Docs** in `docs/MCP_TOOLS_GUIDE.md` and `docs/API_REFERENCE.md` for new tools.
 - **Version bump** — `platformio.ini`'s `FIRMWARE_VERSION` and doc references must move together (per Risk #11 in `ARCHITECTURE.md`). Likely target: `3.1.0`.
 
@@ -171,6 +171,6 @@ Two unit systems, because the relevant cost depends on who's writing:
 
 ## Open Decisions
 
-1. **F2 path:** A (BLE LE Audio), B (WiFi passthrough — recommended), or C (defer to PCB revision)?
+1. ~~**F2 path:** A (BLE LE Audio), B (WiFi passthrough — recommended), or C (defer to PCB revision)?~~
 2. **F3 pre-req:** migrate `GOOGLE_WEATHER_API_KEY` to NVS portal config now, or punt?
 3. **Sequencing:** ship features individually as they land, or batch into a single `3.1.0` release?
