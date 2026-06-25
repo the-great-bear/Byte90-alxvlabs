@@ -972,14 +972,15 @@ void McpToolRegistry::registerTimerTools(McpServer* mcp)
 
     mcp->addTool(
         "self.timer.set",
-        "Start a single countdown timer using hours OR minutes OR seconds.\n"
+        "Start a countdown timer using hours OR minutes OR seconds. Up to 8 timers can run concurrently.\n"
         "Use this tool for:\n"
-        "1. Creating a new timer when the user asks (e.g., 'set a 10 minute timer').\n"
-        "Notes: provide exactly one of hours, minutes, or seconds.",
+        "1. Creating a new timer when the user asks (e.g., 'set a 10 minute pasta timer').\n"
+        "Notes: provide exactly one of hours, minutes, or seconds. The optional label (≤24 chars) names the timer.",
         PropertyList({
-            Property("hours", PROPERTY_TYPE_INTEGER, 0, 0, 8),
+            Property("hours",   PROPERTY_TYPE_INTEGER, 0, 0, 8),
             Property("minutes", PROPERTY_TYPE_INTEGER, 0, 0, 480),
-            Property("seconds", PROPERTY_TYPE_INTEGER, 0, 0, 28800)
+            Property("seconds", PROPERTY_TYPE_INTEGER, 0, 0, 28800),
+            Property("label",   PROPERTY_TYPE_STRING,  "")
         }),
         [mcp](PropertyList& params) -> ReturnValue {
             auto* timer_manager = mcp ? mcp->getTimerManager() : nullptr;
@@ -987,15 +988,11 @@ void McpToolRegistry::registerTimerTools(McpServer* mcp)
                 return ReturnValue("{\"error\":\"timer_unavailable\",\"message\":\"Timer unavailable.\"}");
             }
 
-            int hours = params["hours"].getIntValue();
+            int hours   = params["hours"].getIntValue();
             int minutes = params["minutes"].getIntValue();
             int seconds = params["seconds"].getIntValue();
 
-            int provided = 0;
-            if (hours > 0) provided++;
-            if (minutes > 0) provided++;
-            if (seconds > 0) provided++;
-
+            int provided = (hours > 0 ? 1 : 0) + (minutes > 0 ? 1 : 0) + (seconds > 0 ? 1 : 0);
             if (provided != 1) {
                 return ReturnValue("{\"error\":\"duration_invalid\",\"message\":\"Provide exactly one of hours, minutes, or seconds.\"}");
             }
@@ -1008,7 +1005,7 @@ void McpToolRegistry::registerTimerTools(McpServer* mcp)
             } else if (minutes > 0) {
                 duration_seconds = static_cast<uint32_t>(minutes) * 60U;
                 format = TimerManager::DisplayFormat::Minutes;
-            } else if (seconds > 0) {
+            } else {
                 duration_seconds = static_cast<uint32_t>(seconds);
                 format = TimerManager::DisplayFormat::Seconds;
             }
@@ -1017,13 +1014,17 @@ void McpToolRegistry::registerTimerTools(McpServer* mcp)
                 return ReturnValue("{\"error\":\"duration_invalid\",\"message\":\"Duration must be between 1 second and 8 hours.\"}");
             }
 
-            if (timer_manager->isRunning()) {
-                return ReturnValue("{\"error\":\"timer_running\",\"message\":\"A timer is already running.\"}");
+            String label = params["label"].getStringValue();
+            if (label.length() > TIMER_LABEL_MAX) {
+                label = label.substring(0, TIMER_LABEL_MAX);
             }
 
-            if (!timer_manager->start(duration_seconds, format)) {
-                return ReturnValue("{\"error\":\"timer_start_failed\",\"message\":\"Failed to start timer.\"}");
+            uint8_t id = timer_manager->start(duration_seconds, label.c_str(), format);
+            if (id == 0) {
+                return ReturnValue("{\"error\":\"timer_start_failed\",\"message\":\"Failed to start timer (max timers reached or internal error).\"}");
             }
+
+            timer_manager->persistTimers(mcp->getStorage());
 
             ClockSync clock_sync;
             long long now_ms = clock_sync.epochMs();
@@ -1033,68 +1034,139 @@ void McpToolRegistry::registerTimerTools(McpServer* mcp)
 
             JsonDocument* response = new JsonDocument();
             (*response)["status"] = "ok";
+            (*response)["id"] = id;
+            (*response)["label"] = label;
             (*response)["duration_seconds"] = duration_seconds;
             (*response)["ends_at_epoch_ms"] = ends_at;
+            return ReturnValue(response);
+        }
+    );
+
+    mcp->addTool(
+        "self.timer.list",
+        "List all active timers.\n"
+        "Use this tool for:\n"
+        "1. Answering 'what timers do I have running?' or before canceling a specific timer.",
+        PropertyList(),
+        [mcp](PropertyList& params) -> ReturnValue {
+            (void)params;
+            auto* timer_manager = mcp ? mcp->getTimerManager() : nullptr;
+            if (!timer_manager) {
+                return ReturnValue("{\"error\":\"timer_unavailable\",\"message\":\"Timer unavailable.\"}");
+            }
+
+            auto active = timer_manager->listActive();
+            ClockSync clock_sync;
+            long long now_ms = clock_sync.epochMs();
+
+            JsonDocument* response = new JsonDocument();
+            (*response)["count"] = active.size();
+            auto timers_arr = (*response)["timers"].to<JsonArray>();
+            for (const auto& e : active) {
+                uint32_t remaining = timer_manager->isRunning(e.id)
+                    ? timer_manager->remainingSeconds()
+                    : 0;
+                // compute per-entry remaining from end_ms
+                uint64_t now_boot = millis();
+                uint32_t entry_remaining = (e.end_ms > now_boot)
+                    ? static_cast<uint32_t>((e.end_ms - now_boot) / 1000ULL)
+                    : 0;
+                (void)remaining;
+                long long ends_at = (now_ms > 0 && e.end_epoch_ms > 0) ? e.end_epoch_ms : 0;
+
+                JsonObject obj = timers_arr.add<JsonObject>();
+                obj["id"]               = e.id;
+                obj["label"]            = e.label;
+                obj["duration_seconds"] = e.duration_seconds;
+                obj["remaining_seconds"]= entry_remaining;
+                obj["ends_at_epoch_ms"] = ends_at;
+            }
             return ReturnValue(response);
         }
     );
 
     mcp->addTool(
         "self.timer.status",
-        "Get the current timer status.\n"
+        "Get the status of a specific timer (or the soonest-expiring one if no id given).\n"
         "Use this tool for:\n"
-        "1. Answering questions about whether a timer is running and time remaining.",
-        PropertyList(),
+        "1. Answering questions about whether a timer is running and time remaining.\n"
+        "Notes: omit id or pass 0 to query the soonest-expiring running timer.",
+        PropertyList({
+            Property("id", PROPERTY_TYPE_INTEGER, 0, 0, 255)
+        }),
         [mcp](PropertyList& params) -> ReturnValue {
-            (void)params;
             auto* timer_manager = mcp ? mcp->getTimerManager() : nullptr;
             if (!timer_manager) {
                 return ReturnValue("{\"error\":\"timer_unavailable\",\"message\":\"Timer unavailable.\"}");
             }
 
-            bool running = timer_manager->isRunning();
-            uint32_t duration_seconds = running ? timer_manager->durationSeconds() : 0;
-            uint32_t remaining_seconds = running ? timer_manager->remainingSeconds() : 0;
-
-            ClockSync clock_sync;
-            long long now_ms = clock_sync.epochMs();
-            long long ends_at = (running && now_ms > 0)
-                ? now_ms + static_cast<long long>(remaining_seconds) * 1000LL
-                : 0;
+            int id_param = params["id"].getIntValue();
 
             JsonDocument* response = new JsonDocument();
-            (*response)["running"] = running;
-            (*response)["duration_seconds"] = duration_seconds;
-            (*response)["remaining_seconds"] = remaining_seconds;
-            (*response)["ends_at_epoch_ms"] = ends_at;
+            ClockSync clock_sync;
+            long long now_ms = clock_sync.epochMs();
+
+            if (id_param == 0) {
+                bool running = timer_manager->isRunning();
+                uint32_t duration_seconds  = running ? timer_manager->durationSeconds()  : 0;
+                uint32_t remaining_seconds = running ? timer_manager->remainingSeconds()  : 0;
+                long long ends_at = (running && now_ms > 0)
+                    ? now_ms + static_cast<long long>(remaining_seconds) * 1000LL
+                    : 0;
+                (*response)["running"]           = running;
+                (*response)["duration_seconds"]  = duration_seconds;
+                (*response)["remaining_seconds"] = remaining_seconds;
+                (*response)["ends_at_epoch_ms"]  = ends_at;
+            } else {
+                const auto* e = timer_manager->getEntry(static_cast<uint8_t>(id_param));
+                if (!e) {
+                    return ReturnValue("{\"error\":\"timer_not_found\",\"message\":\"No timer with that id.\"}");
+                }
+                uint64_t now_boot = millis();
+                uint32_t remaining = (e->running && e->end_ms > now_boot)
+                    ? static_cast<uint32_t>((e->end_ms - now_boot) / 1000ULL)
+                    : 0;
+                long long ends_at = (now_ms > 0 && e->end_epoch_ms > 0) ? e->end_epoch_ms : 0;
+                (*response)["id"]                = e->id;
+                (*response)["label"]             = e->label;
+                (*response)["running"]           = e->running;
+                (*response)["duration_seconds"]  = e->duration_seconds;
+                (*response)["remaining_seconds"] = remaining;
+                (*response)["ends_at_epoch_ms"]  = ends_at;
+            }
             return ReturnValue(response);
         }
     );
 
     mcp->addTool(
         "self.timer.cancel",
-        "Cancel the active timer.\n"
+        "Cancel a timer by id, or the most-recently started timer if no id is given.\n"
         "Use this tool for:\n"
         "1. Stopping a running timer when the user asks to cancel it.",
-        PropertyList(),
+        PropertyList({
+            Property("id", PROPERTY_TYPE_INTEGER, 0, 0, 255)
+        }),
         [mcp](PropertyList& params) -> ReturnValue {
-            (void)params;
             auto* timer_manager = mcp ? mcp->getTimerManager() : nullptr;
             if (!timer_manager) {
                 return ReturnValue("{\"error\":\"timer_unavailable\",\"message\":\"Timer unavailable.\"}");
             }
 
+            uint8_t id = static_cast<uint8_t>(params["id"].getIntValue());
+
             if (!timer_manager->isRunning()) {
                 return ReturnValue("{\"error\":\"timer_not_running\",\"message\":\"No active timer to cancel.\"}");
             }
 
-            bool canceled = timer_manager->cancel();
+            bool canceled = timer_manager->cancel(id);
             if (!canceled) {
                 return ReturnValue("{\"error\":\"timer_cancel_failed\",\"message\":\"Failed to cancel timer.\"}");
             }
 
+            timer_manager->persistTimers(mcp->getStorage());
+
             JsonDocument* response = new JsonDocument();
-            (*response)["status"] = "ok";
+            (*response)["status"]   = "ok";
             (*response)["canceled"] = true;
             return ReturnValue(response);
         }
@@ -1102,29 +1174,31 @@ void McpToolRegistry::registerTimerTools(McpServer* mcp)
 
     mcp->addTool(
         "self.timer.repeat",
-        "Repeat the last timer duration.\n"
+        "Repeat (restart) a timer by id, or the most-recently started timer if no id is given.\n"
         "Use this tool for:\n"
-        "1. Repeating the most recent timer when the user asks to do it again.",
-        PropertyList(),
+        "1. Restarting a timer when the user asks to do it again.",
+        PropertyList({
+            Property("id", PROPERTY_TYPE_INTEGER, 0, 0, 255)
+        }),
         [mcp](PropertyList& params) -> ReturnValue {
-            (void)params;
             auto* timer_manager = mcp ? mcp->getTimerManager() : nullptr;
             if (!timer_manager) {
                 return ReturnValue("{\"error\":\"timer_unavailable\",\"message\":\"Timer unavailable.\"}");
             }
 
-            if (timer_manager->isRunning()) {
-                return ReturnValue("{\"error\":\"timer_running\",\"message\":\"A timer is already running.\"}");
-            }
+            uint8_t id = static_cast<uint8_t>(params["id"].getIntValue());
 
             uint32_t last_duration = timer_manager->lastDurationSeconds();
             if (last_duration == 0) {
                 return ReturnValue("{\"error\":\"no_previous_timer\",\"message\":\"No previous timer to repeat.\"}");
             }
 
-            if (!timer_manager->repeat()) {
+            uint8_t new_id = timer_manager->repeatTimer(id);
+            if (new_id == 0) {
                 return ReturnValue("{\"error\":\"timer_start_failed\",\"message\":\"Failed to start timer.\"}");
             }
+
+            timer_manager->persistTimers(mcp->getStorage());
 
             ClockSync clock_sync;
             long long now_ms = clock_sync.epochMs();
@@ -1133,7 +1207,8 @@ void McpToolRegistry::registerTimerTools(McpServer* mcp)
                 : 0;
 
             JsonDocument* response = new JsonDocument();
-            (*response)["status"] = "ok";
+            (*response)["status"]           = "ok";
+            (*response)["id"]               = new_id;
             (*response)["duration_seconds"] = last_duration;
             (*response)["ends_at_epoch_ms"] = ends_at;
             return ReturnValue(response);

@@ -133,6 +133,31 @@
 
 ---
 
+## Feature 5 — Clock rotation (periodic clock/GIF cycling)
+
+**Goal:** Automatically rotate between GIF animation and clock mode at a configured interval so the display briefly shows the time without the user asking.
+
+### Design
+
+- New module `lib/clock/ClockRotation.{h,cpp}`. Holds two intervals: `gif_duration_s` (how long to show GIFs before switching to clock) and `clock_duration_s` (how long to hold clock before returning to GIFs). Both default 0 = disabled.
+- Lifecycle: `ClockRotation::update()` is called from `ApplicationUI::loop()` (same pattern as `DigitalClockController`). It tracks `millis()` and calls `ApplicationUI::showClock()` / `ApplicationUI::stopClock()` when its intervals fire. It yields to any manual `show_clock` / `stop_clock` MCP call by checking `isShowingClock()` state before acting.
+- Persist `gif_duration_s` and `clock_duration_s` to NVS via `NvsStorage` (new keys in the `system` namespace).
+- New MCP tools in `lib/mcp/McpToolRegistry.cpp` under `registerClockTools()`:
+  - `self.display.clock_rotation.set` — `{ gif_seconds: int, clock_seconds: int }`. `gif_seconds = 0` disables. Persists to NVS.
+  - `self.display.clock_rotation.disable` — zero both intervals and persist.
+  - `self.display.clock_rotation.status` — returns `{ enabled, gif_seconds, clock_seconds, next_switch_in_seconds }`.
+
+### Files
+
+`lib/clock/ClockRotation.{h,cpp}` (new), `lib/storage/NvsStorage.{h,cpp}` (new NVS keys), `lib/mcp/McpToolRegistry.cpp`, `src/ApplicationUI.{h,cpp}`.
+
+### Risk / Acceptance
+
+- **Risk:** Rotation must not fight manual clock MCP calls. The `update()` method should reset its internal countdown whenever it detects a manual state change, so a user-requested `show_clock` isn't immediately overridden by rotation.
+- **Acceptance:** rotation fires on schedule; `set_interval` persists across reboot; manual `show_clock` / `stop_clock` pauses the rotation countdown and does not flicker; `status` reports correct `next_switch_in_seconds`.
+
+---
+
 ## Effort Estimates (two units)
 
 Two unit systems, because the relevant cost depends on who's writing:
@@ -142,6 +167,7 @@ Two unit systems, because the relevant cost depends on who's writing:
 | F4 jokes | 1–2 | ~30 min | Flashing + verifying bilingual output |
 | F1 multi-timer | 2–3 | ~1–2 hr | NVS-rehydration edge cases, unit-test pass |
 | F3 weather | 3–4 | ~2–3 hr | API-key wiring, on-device display tuning |
+| F5 clock rotation | 1–2 | ~45 min | Verifying rotation doesn't fight manual clock calls |
 | ~~F2 Path B (WiFi passthrough)~~ | ~~4–5~~ | ~~~3–4 hr~~ | ~~Real-device latency tuning, audio quality~~ |
 
 **Caveat for the agent column:** the typing isn't the bottleneck — the loop is. Per [`AGENTS.md`](AGENTS.md), the maintainer flashes locally; CI does not. So the real cycle is **agent writes → maintainer flashes → maintainer reports → agent patches**. Each round-trip is the actual cost driver, not the code generation.
@@ -155,9 +181,10 @@ Two unit systems, because the relevant cost depends on who's writing:
 1. **F4 (jokes)** — lowest risk; validates the asset-loading + tool-param-extension pattern. ~1 day.
 2. **F1 (multi-timer)** — touches `TimerManager` + NVS persistence; builds the rehydration pattern reused by F3.
 3. **F3 (weather)** — depends on F1's NVS rehydration + the `GOOGLE_WEATHER_API_KEY` portal-config migration.
-4. ~~**F2 (audio passthrough)** — **blocked** until a Path A vs Path B vs Path C decision lands. Don't start until decided.~~
+4. **F5 (clock rotation)** — small; fits after F1 since both touch the clock/UI layer.
+5. ~~**F2 (audio passthrough)** — **blocked** until a Path A vs Path B vs Path C decision lands. Don't start until decided.~~
 
-**Total ship time:** ~6–9 human dev-days for F1, F3, F4. ~~F2 struck — hardware-blocked.~~
+**Total ship time:** ~7–11 human dev-days for F1, F3, F4, F5. ~~F2 struck — hardware-blocked.~~
 
 ---
 

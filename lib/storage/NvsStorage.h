@@ -435,6 +435,12 @@ public:
      */
     String getDeviceUUID();
 
+    // Timers namespace (raw Preferences access for TimerManager persistence)
+
+    bool beginTimers(bool readonly = false);
+    void endTimers();
+    Preferences& getTimersPrefs() { return _timers_prefs; }
+
     // Maintenance
 
     /**
@@ -481,6 +487,7 @@ private:
     Preferences _device_prefs;
     Preferences _mqtt_prefs;
     Preferences _websocket_prefs;
+    Preferences _timers_prefs;
 
     // State
     bool _initialized;

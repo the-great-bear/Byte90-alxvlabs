@@ -239,10 +239,13 @@ void Application::initialize() {
     }
 
     if (_timer_manager) {
-        _timer_manager->setExpiredCallback([this]() {
+        _timer_manager->setExpiredCallback([this](uint8_t /*id*/, const char* /*label*/) {
             _timer_alert_remaining = TIMER_ALERT_REPEAT_COUNT;
             _timer_alert_active = true;
         });
+        if (_storage) {
+            _timer_manager->rehydrateTimers(_storage);
+        }
     }
 
     initializeLanguage();

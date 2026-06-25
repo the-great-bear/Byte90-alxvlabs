@@ -634,6 +634,18 @@ void NVSStorage::endWebSocket() {
     closeNamespace(_websocket_prefs);
 }
 
+// Timers (raw Preferences access for TimerManager)
+bool NVSStorage::beginTimers(bool readonly) {
+    if (!_initialized) {
+        return false;
+    }
+    return openNamespace(_timers_prefs, "timers", readonly);
+}
+
+void NVSStorage::endTimers() {
+    closeNamespace(_timers_prefs);
+}
+
 // Maintenance
 bool NVSStorage::resetToDefaults() {
     if (!_initialized) {
